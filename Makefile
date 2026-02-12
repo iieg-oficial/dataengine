@@ -94,4 +94,3 @@ clean:
 	@echo "ATENCION: Esto eliminara todos los datos de PostgreSQL y backups"
 	@read -p "Escribir 'si' para confirmar: " confirm && [ "$$confirm" = "si" ] || (echo "Cancelado" && exit 1)
 	docker compose down -v
-	rm -rf volumes/

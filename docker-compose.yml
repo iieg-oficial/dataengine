@@ -1,7 +1,9 @@
+name: dataengine
+
 services:
   postgres-primary:
     image: postgres:18-alpine
-    container_name: postgres-primary
+    container_name: dataengine-primary
     restart: unless-stopped
     ports:
       - "${PG_PRIMARY_PORT:-5432}:5432"
@@ -12,7 +14,7 @@ services:
       REPLICATION_USER: ${REPLICATION_USER}
       REPLICATION_PASSWORD: ${REPLICATION_PASSWORD}
     volumes:
-      - ${POSTGRES_PRIMARY_DATA}:/var/lib/postgresql/data
+      - primary-data:/var/lib/postgresql/data
       - ./postgres/primary/init:/docker-entrypoint-initdb.d
       - ./postgres/primary/config/postgresql.conf:/etc/postgresql/postgresql.conf:ro
     command: postgres -c config_file=/etc/postgresql/postgresql.conf
@@ -26,7 +28,7 @@ services:
 
   postgres-replica:
     image: postgres:18-alpine
-    container_name: postgres-replica
+    container_name: dataengine-replica
     restart: unless-stopped
     ports:
       - "${PG_REPLICA_PORT:-5433}:5432"
@@ -35,7 +37,7 @@ services:
       REPLICATION_USER: ${REPLICATION_USER}
       REPLICATION_PASSWORD: ${REPLICATION_PASSWORD}
     volumes:
-      - ${POSTGRES_REPLICA_DATA}:/var/lib/postgresql/data
+      - replica-data:/var/lib/postgresql/data
       - ./postgres/replica/start-replica.sh:/start-replica.sh:ro
     entrypoint: /start-replica.sh
     depends_on:
@@ -51,7 +53,7 @@ services:
 
   pg-backup:
     build: ./backup
-    container_name: pg-backup
+    container_name: dataengine-backup
     restart: unless-stopped
     environment:
       POSTGRES_USER: ${POSTGRES_USER}
@@ -62,7 +64,7 @@ services:
       AO_ACCESS_KEY: ${AO_ACCESS_KEY}
       AO_SECRET_KEY: ${AO_SECRET_KEY}
     volumes:
-      - ${BACKUP_DATA}:/backups
+      - backup-data:/backups
       - ./restore:/restore
     depends_on:
       postgres-primary:
@@ -70,6 +72,15 @@ services:
     networks:
       - db-network
 
+volumes:
+  primary-data:
+    name: dataengine-primary-data
+  replica-data:
+    name: dataengine-replica-data
+  backup-data:
+    name: dataengine-backup-data
+
 networks:
   db-network:
+    name: dataengine-network
     driver: bridge
