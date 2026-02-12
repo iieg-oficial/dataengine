@@ -17,6 +17,7 @@ services:
       - primary-data:/var/lib/postgresql/data
       - ./postgres/primary/init:/docker-entrypoint-initdb.d
       - ./postgres/primary/config/postgresql.conf:/etc/postgresql/postgresql.conf:ro
+      - ./restore:/restore
     command: postgres -c config_file=/etc/postgresql/postgresql.conf
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
@@ -65,7 +66,6 @@ services:
       AO_SECRET_KEY: ${AO_SECRET_KEY}
     volumes:
       - backup-data:/backups
-      - ./restore:/restore
     depends_on:
       postgres-primary:
         condition: service_healthy
