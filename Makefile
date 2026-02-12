@@ -72,8 +72,8 @@ endif
 		if echo "$$HEADER" | grep -q PGDMP; then \
 			echo "Detectado: custom format"; \
 			pg_restore -U $(POSTGRES_USER) -d $(POSTGRES_DB) \
-				--no-owner --exit-on-error \
-				/restore/$(FILE); \
+				--no-owner \
+				/restore/$(FILE) || true; \
 		elif echo "$(FILE)" | grep -qE "\.gz$$"; then \
 			echo "Detectado: sql comprimido"; \
 			gunzip -c /restore/$(FILE) | psql -U $(POSTGRES_USER) -d $(POSTGRES_DB); \
