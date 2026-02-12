@@ -67,6 +67,8 @@ restore:
 ifndef FILE
 	$(error Uso: make restore FILE=nombre_del_archivo)
 endif
+	@docker compose exec postgres-primary psql -U $(POSTGRES_USER) -d $(POSTGRES_DB) \
+		-c "CREATE EXTENSION IF NOT EXISTS postgis; CREATE EXTENSION IF NOT EXISTS postgis_topology;"
 	@docker compose exec postgres-primary sh -c '\
 		HEADER=$$(head -c 5 /restore/$(FILE) | strings); \
 		if echo "$$HEADER" | grep -q PGDMP; then \
