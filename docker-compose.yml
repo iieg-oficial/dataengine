@@ -2,7 +2,7 @@ name: dataengine
 
 services:
   postgres-primary:
-    image: postgres:18-alpine
+    image: postgis/postgis:18-3.6-alpine
     container_name: dataengine-primary
     restart: unless-stopped
     ports:
@@ -28,7 +28,7 @@ services:
       - db-network
 
   postgres-replica:
-    image: postgres:18-alpine
+    image: postgis/postgis:18-3.6-alpine
     container_name: dataengine-replica
     restart: unless-stopped
     ports:

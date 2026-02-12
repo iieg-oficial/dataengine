@@ -1,4 +1,4 @@
-FROM postgres:18-alpine
+FROM postgis/postgis:18-3.6-alpine
 
 RUN apk add --no-cache curl \
     && curl -fsSL https://dl.min.io/client/mc/release/linux-amd64/mc -o /usr/local/bin/mc \
