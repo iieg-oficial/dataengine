@@ -28,4 +28,4 @@ EOF
     chmod 700 "$PGDATA"
 fi
 
-exec docker-entrypoint.sh postgres
+exec docker-entrypoint.sh postgres -c config_file=/etc/postgresql/postgresql.conf

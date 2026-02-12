@@ -40,6 +40,7 @@ services:
     volumes:
       - replica-data:/var/lib/postgresql/data
       - ./postgres/replica/start-replica.sh:/start-replica.sh:ro
+      - ./postgres/primary/config/postgresql.conf:/etc/postgresql/postgresql.conf:ro
     entrypoint: /start-replica.sh
     depends_on:
       postgres-primary:
