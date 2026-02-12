@@ -1,6 +1,6 @@
 services:
   postgres-primary:
-    image: postgres:18.2-alpine
+    image: postgres:18-alpine
     container_name: postgres-primary
     restart: unless-stopped
     ports:
@@ -25,7 +25,7 @@ services:
       - db-network
 
   postgres-replica:
-    image: postgres:18.2-alpine
+    image: postgres:18-alpine
     container_name: postgres-replica
     restart: unless-stopped
     ports:

@@ -1,4 +1,4 @@
-FROM postgres:18.2-alpine
+FROM postgres:18-alpine
 
 RUN apk add --no-cache dcron curl \
     && curl -fsSL https://dl.min.io/client/mc/release/linux-amd64/mc -o /usr/local/bin/mc \
