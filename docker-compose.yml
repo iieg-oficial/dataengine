@@ -1,0 +1,75 @@
+services:
+  postgres-primary:
+    image: postgres:18.2-alpine
+    container_name: postgres-primary
+    restart: unless-stopped
+    ports:
+      - "${PG_PRIMARY_PORT:-5432}:5432"
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+      REPLICATION_USER: ${REPLICATION_USER}
+      REPLICATION_PASSWORD: ${REPLICATION_PASSWORD}
+    volumes:
+      - ${POSTGRES_PRIMARY_DATA}:/var/lib/postgresql/data
+      - ./postgres/primary/init:/docker-entrypoint-initdb.d
+      - ./postgres/primary/config/postgresql.conf:/etc/postgresql/postgresql.conf:ro
+    command: postgres -c config_file=/etc/postgresql/postgresql.conf
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - db-network
+
+  postgres-replica:
+    image: postgres:18.2-alpine
+    container_name: postgres-replica
+    restart: unless-stopped
+    ports:
+      - "${PG_REPLICA_PORT:-5433}:5432"
+    environment:
+      PGDATA: /var/lib/postgresql/data
+      REPLICATION_USER: ${REPLICATION_USER}
+      REPLICATION_PASSWORD: ${REPLICATION_PASSWORD}
+    volumes:
+      - ${POSTGRES_REPLICA_DATA}:/var/lib/postgresql/data
+      - ./postgres/replica/start-replica.sh:/start-replica.sh:ro
+    entrypoint: /start-replica.sh
+    depends_on:
+      postgres-primary:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${REPLICATION_USER}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - db-network
+
+  pg-backup:
+    build: ./backup
+    container_name: pg-backup
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+      AO_ENDPOINT: ${AO_ENDPOINT}
+      AO_BUCKET: ${AO_BUCKET}
+      AO_ACCESS_KEY: ${AO_ACCESS_KEY}
+      AO_SECRET_KEY: ${AO_SECRET_KEY}
+    volumes:
+      - ${BACKUP_DATA}:/backups
+      - ./restore:/restore
+    depends_on:
+      postgres-primary:
+        condition: service_healthy
+    networks:
+      - db-network
+
+networks:
+  db-network:
+    driver: bridge

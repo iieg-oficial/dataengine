@@ -1,0 +1,6 @@
+.env
+volumes/
+restore/*
+!restore/.gitkeep
+*.sql.gz
+*.dump
