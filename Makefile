@@ -67,25 +67,20 @@ restore:
 ifndef FILE
 	$(error Uso: make restore FILE=nombre_del_archivo)
 endif
-	@if echo "$(FILE)" | grep -qE '\.dump$$'; then \
-		echo "Restaurando custom format: $(FILE)"; \
-		docker compose exec postgres-primary pg_restore \
-			-U $(POSTGRES_USER) -d $(POSTGRES_DB) \
-			--clean --if-exists --no-owner \
-			/restore/$(FILE); \
-	elif echo "$(FILE)" | grep -qE '\.sql\.gz$$'; then \
-		echo "Restaurando sql comprimido: $(FILE)"; \
-		docker compose exec postgres-primary sh -c \
-			"gunzip -c /restore/$(FILE) | psql -U $(POSTGRES_USER) -d $(POSTGRES_DB)"; \
-	elif echo "$(FILE)" | grep -qE '\.sql$$'; then \
-		echo "Restaurando sql plano: $(FILE)"; \
-		docker compose exec postgres-primary psql \
-			-U $(POSTGRES_USER) -d $(POSTGRES_DB) \
-			-f /restore/$(FILE); \
-	else \
-		echo "Formato no soportado. Usa .dump, .sql o .sql.gz"; \
-		exit 1; \
-	fi
+	@docker compose exec postgres-primary sh -c '\
+		HEADER=$$(head -c 5 /restore/$(FILE) | strings); \
+		if echo "$$HEADER" | grep -q PGDMP; then \
+			echo "Detectado: custom format"; \
+			pg_restore -U $(POSTGRES_USER) -d $(POSTGRES_DB) \
+				--clean --if-exists --no-owner \
+				/restore/$(FILE); \
+		elif echo "$(FILE)" | grep -qE "\.gz$$"; then \
+			echo "Detectado: sql comprimido"; \
+			gunzip -c /restore/$(FILE) | psql -U $(POSTGRES_USER) -d $(POSTGRES_DB); \
+		else \
+			echo "Detectado: sql plano"; \
+			psql -U $(POSTGRES_USER) -d $(POSTGRES_DB) -f /restore/$(FILE); \
+		fi'
 	@echo "Restauracion completada"
 
 clean:
