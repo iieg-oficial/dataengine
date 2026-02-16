@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/sh
 set -e
 
 cat > "$PGDATA/pg_hba.conf" <<EOF

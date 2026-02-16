@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/sh
 set -e
 
 TIMESTAMP=$(date +%Y%m%d_%H%M%S)

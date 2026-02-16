@@ -16,7 +16,7 @@ services:
       ALLOWED_HOST_1: ${ALLOWED_HOST_1}
       ALLOWED_HOST_2: ${ALLOWED_HOST_2}
     volumes:
-      - primary-data:/var/lib/postgresql/data
+      - ${POSTGRES_PRIMARY_DATA}:/var/lib/postgresql/data
       - ./postgres/primary/init:/docker-entrypoint-initdb.d
       - ./postgres/primary/config/postgresql.conf:/etc/postgresql/postgresql.conf:ro
       - ./restore:/restore
@@ -42,7 +42,7 @@ services:
       ALLOWED_HOST_1: ${ALLOWED_HOST_1}
       ALLOWED_HOST_2: ${ALLOWED_HOST_2}
     volumes:
-      - replica-data:/var/lib/postgresql/data
+      - ${POSTGRES_REPLICA_DATA}:/var/lib/postgresql/data
       - ./postgres/replica/start-replica.sh:/start-replica.sh:ro
       - ./postgres/primary/config/postgresql.conf:/etc/postgresql/postgresql.conf:ro
     entrypoint: /start-replica.sh
@@ -50,7 +50,7 @@ services:
       postgres-primary:
         condition: service_healthy
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${REPLICATION_USER}"]
+      test: ["CMD-SHELL", "pg_isready -U ${REPLICATION_USER} -d postgres"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -70,20 +70,12 @@ services:
       AO_ACCESS_KEY: ${AO_ACCESS_KEY}
       AO_SECRET_KEY: ${AO_SECRET_KEY}
     volumes:
-      - backup-data:/backups
+      - ${BACKUP_DATA}:/backups
     depends_on:
       postgres-primary:
         condition: service_healthy
     networks:
       - db-network
-
-volumes:
-  primary-data:
-    name: dataengine-primary-data
-  replica-data:
-    name: dataengine-replica-data
-  backup-data:
-    name: dataengine-backup-data
 
 networks:
   db-network:
