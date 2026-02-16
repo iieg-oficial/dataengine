@@ -17,6 +17,7 @@ services:
       ALLOWED_HOST_2: ${ALLOWED_HOST_2}
     volumes:
       - ${POSTGRES_PRIMARY_DATA}:/var/lib/postgresql/data
+      - pg-certs:/var/lib/postgresql/certs
       - ./postgres/primary/init:/docker-entrypoint-initdb.d
       - ./postgres/primary/config/postgresql.conf:/etc/postgresql/postgresql.conf:ro
       - ./restore:/restore
@@ -43,6 +44,7 @@ services:
       ALLOWED_HOST_2: ${ALLOWED_HOST_2}
     volumes:
       - ${POSTGRES_REPLICA_DATA}:/var/lib/postgresql/data
+      - pg-certs:/certs:ro
       - ./postgres/replica/start-replica.sh:/start-replica.sh:ro
       - ./postgres/primary/config/postgresql.conf:/etc/postgresql/postgresql.conf:ro
     entrypoint: /start-replica.sh
@@ -71,11 +73,15 @@ services:
       AO_SECRET_KEY: ${AO_SECRET_KEY}
     volumes:
       - ${BACKUP_DATA}:/backups
+      - pg-certs:/certs:ro
     depends_on:
       postgres-primary:
         condition: service_healthy
     networks:
       - db-network
+
+volumes:
+  pg-certs:
 
 networks:
   db-network:

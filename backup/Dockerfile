@@ -4,9 +4,11 @@ RUN apk add --no-cache curl \
     && curl -fsSL https://dl.min.io/client/mc/release/linux-amd64/mc -o /usr/local/bin/mc \
     && chmod +x /usr/local/bin/mc
 
+RUN mkdir -p /backups && chmod 700 /backups
+
 COPY scripts/ /scripts/
-RUN chmod +x /scripts/*.sh
+RUN chmod 700 /scripts/*.sh
 
 COPY crontab /etc/crontabs/root
 
-CMD ["crond", "-f", "-l", "2"]
+CMD ["crond", "-f", "-l", "8"]

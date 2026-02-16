@@ -67,6 +67,8 @@ restore:
 ifndef FILE
 	$(error Uso: make restore FILE=nombre_del_archivo)
 endif
+	@echo "$(FILE)" | grep -qE '(\.\.|/)' && { echo "Error: FILE no debe contener '..' ni '/'"; exit 1; } || true
+	@[ "$$(basename '$(FILE)')" != "$(FILE)" ] && { echo "Error: FILE debe ser solo un nombre de archivo"; exit 1; } || true
 	@docker compose exec postgres-primary psql -U $(POSTGRES_USER) -d $(POSTGRES_DB) \
 		-c "CREATE EXTENSION IF NOT EXISTS postgis; CREATE EXTENSION IF NOT EXISTS postgis_topology;"
 	@docker compose exec postgres-primary sh -c '\

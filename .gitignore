@@ -3,3 +3,5 @@ restore/*
 !restore/.gitkeep
 *.sql.gz
 *.dump
+volumes/
+*.log
