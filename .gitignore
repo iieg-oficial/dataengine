@@ -4,4 +4,6 @@ restore/*
 *.sql.gz
 *.dump
 volumes/
+postgres/certs/
+backup/mc
 *.log
