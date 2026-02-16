@@ -55,4 +55,4 @@ else
     fi
 fi
 
-exec docker-entrypoint.sh postgres -c config_file=/etc/postgresql/postgresql.conf
+exec docker-entrypoint.sh postgres -c config_file=/etc/postgresql/postgresql.conf -c ssl=off
