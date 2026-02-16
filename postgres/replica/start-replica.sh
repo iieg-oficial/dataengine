@@ -4,7 +4,7 @@ set -e
 init_replica() {
     echo "Replica: running pg_basebackup from primary..."
 
-    until PGPASSWORD="$REPLICATION_PASSWORD" pg_isready -h postgres-primary -p 5432 -U "$REPLICATION_USER"; do
+    until PGPASSWORD="$REPLICATION_PASSWORD" pg_isready -h postgres-primary -p 5432 -U "$REPLICATION_USER" -d postgres; do
         echo "Waiting for primary to be ready..."
         sleep 2
     done
