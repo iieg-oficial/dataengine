@@ -118,6 +118,26 @@ Copiar `.env.example` a `.env` y configurar:
 | `AO_BUCKET` | Nombre del bucket |
 | `AO_ACCESS_KEY` | Access key del AO |
 | `AO_SECRET_KEY` | Secret key del AO |
+| `ALLOWED_HOST_1` | IP del primer host autorizado para conectarse |
+| `ALLOWED_HOST_2` | IP del segundo host autorizado para conectarse |
+| `PG_BIND_ADDRESS` | IP de binding para los puertos expuestos (default: `0.0.0.0`) |
+
+## Control de acceso
+
+El acceso a PostgreSQL esta restringido a nivel de `pg_hba.conf`. Solo pueden conectarse:
+
+- Conexiones locales dentro del contenedor
+- Red interna de Docker (`172.16.0.0/12`)
+- Las IPs definidas en `ALLOWED_HOST_1` y `ALLOWED_HOST_2`
+
+Cualquier otra IP sera rechazada automaticamente.
+
+El archivo `pg_hba.conf` se genera durante la inicializacion del contenedor mediante el script `00-pg-hba.sh`. Si el volumen de datos ya existe, es necesario re-inicializar o copiar manualmente el archivo para aplicar cambios.
+
+Para verificar la configuracion activa:
+```bash
+docker exec dataengine-primary cat /var/lib/postgresql/data/pg_hba.conf
+```
 
 ## Conexion externa
 
