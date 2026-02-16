@@ -1,7 +1,5 @@
 FROM postgis/postgis:18-3.6-alpine
 
-RUN apk add --no-cache curl
-
 COPY mc /usr/local/bin/mc
 
 RUN mkdir -p /backups && chmod 700 /backups
