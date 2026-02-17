@@ -1,15 +1,19 @@
 #!/bin/sh
 set -e
 
-SSL_OPTS="sslmode=verify-ca sslrootcert=/certs/ca.crt"
+SSL_OPTS="sslmode=verify-ca sslrootcert=/var/lib/postgresql/certs/ca.crt"
+
+PGPASSFILE="/var/lib/postgresql/.pgpass"
+export PGPASSFILE
 
 setup_pgpass() {
-    echo "postgres-primary:5432:*:${REPLICATION_USER}:${REPLICATION_PASSWORD}" > ~/.pgpass
-    chmod 600 ~/.pgpass
+    echo "postgres-primary:5432:*:${REPLICATION_USER}:${REPLICATION_PASSWORD}" > "$PGPASSFILE"
+    chmod 0600 "$PGPASSFILE"
+    chown postgres:postgres "$PGPASSFILE"
 }
 
 cleanup_pgpass() {
-    rm -f ~/.pgpass
+    :
 }
 
 init_replica() {
@@ -55,4 +59,4 @@ else
     fi
 fi
 
-exec docker-entrypoint.sh postgres -c config_file=/etc/postgresql/postgresql.conf -c ssl=off
+exec docker-entrypoint.sh postgres -c config_file=/etc/postgresql/postgresql.conf

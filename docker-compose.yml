@@ -25,7 +25,7 @@ services:
     entrypoint: /entrypoint-ssl.sh
     command: postgres -c config_file=/etc/postgresql/postgresql.conf
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      test: [ "CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}" ]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -46,7 +46,7 @@ services:
       ALLOWED_HOST_2: ${ALLOWED_HOST_2}
     volumes:
       - ${POSTGRES_REPLICA_DATA}:/var/lib/postgresql/data
-      - ./postgres/certs:/certs:ro
+      - ./postgres/certs:/var/lib/postgresql/certs:ro
       - ./postgres/replica/start-replica.sh:/start-replica.sh:ro
       - ./postgres/primary/config/postgresql.conf:/etc/postgresql/postgresql.conf:ro
     entrypoint: /start-replica.sh
@@ -54,7 +54,7 @@ services:
       postgres-primary:
         condition: service_healthy
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${REPLICATION_USER} -d postgres"]
+      test: [ "CMD-SHELL", "pg_isready -U ${REPLICATION_USER} -d postgres" ]
       interval: 10s
       timeout: 5s
       retries: 5
