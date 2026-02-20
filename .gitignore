@@ -1,6 +1,8 @@
 .env
 restore/*
 !restore/.gitkeep
+!restore/do-restore.sh
+!restore/restore.sh
 *.sql.gz
 *.dump
 volumes/

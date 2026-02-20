@@ -21,7 +21,7 @@ help:
 	@echo "  shell-replica   Consola psql en replica (solo lectura)"
 	@echo ""
 	@echo "  backup          Ejecutar respaldo manual"
-	@echo "  restore         Restaurar dump: make restore FILE=archivo.dump"
+	@echo "  restore         Restaurar dump (auto-detecta si solo hay un archivo)"
 	@echo ""
 	@echo "  certs           Generar certificados SSL (solo primera vez)"
 	@echo "  clean           Eliminar volumenes (DESTRUCTIVO)"
@@ -91,28 +91,7 @@ backup:
 	docker compose exec pg-backup /scripts/backup.sh
 
 restore:
-ifndef FILE
-	$(error Uso: make restore FILE=nombre_del_archivo)
-endif
-	@echo "$(FILE)" | grep -qE '(\.\.|/)' && { echo "Error: FILE no debe contener '..' ni '/'"; exit 1; } || true
-	@[ "$$(basename '$(FILE)')" != "$(FILE)" ] && { echo "Error: FILE debe ser solo un nombre de archivo"; exit 1; } || true
-	@docker compose exec -e PGPASSWORD=$(POSTGRES_PASSWORD) postgres-primary psql -U $(POSTGRES_USER) -d $(POSTGRES_DB) \
-		-c "CREATE EXTENSION IF NOT EXISTS postgis; CREATE EXTENSION IF NOT EXISTS postgis_topology;"
-	@docker compose exec -e PGPASSWORD=$(POSTGRES_PASSWORD) postgres-primary sh -c '\
-		HEADER=$$(head -c 5 /restore/$(FILE) | strings); \
-		if echo "$$HEADER" | grep -q PGDMP; then \
-			echo "Detectado: custom format"; \
-			pg_restore -U $(POSTGRES_USER) -d $(POSTGRES_DB) \
-				--no-owner \
-				/restore/$(FILE) || true; \
-		elif echo "$(FILE)" | grep -qE "\.gz$$"; then \
-			echo "Detectado: sql comprimido"; \
-			gunzip -c /restore/$(FILE) | psql -U $(POSTGRES_USER) -d $(POSTGRES_DB); \
-		else \
-			echo "Detectado: sql plano"; \
-			psql -U $(POSTGRES_USER) -d $(POSTGRES_DB) -f /restore/$(FILE); \
-		fi'
-	@echo "Restauracion completada"
+	@bash restore/do-restore.sh $(FILE)
 
 clean:
 	@echo "ATENCION: Esto eliminara todos los datos de PostgreSQL y backups"
