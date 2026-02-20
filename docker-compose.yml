@@ -13,8 +13,7 @@ services:
       POSTGRES_DB: ${POSTGRES_DB}
       REPLICATION_USER: ${REPLICATION_USER}
       REPLICATION_PASSWORD: ${REPLICATION_PASSWORD}
-      ALLOWED_HOST_1: ${ALLOWED_HOST_1}
-      ALLOWED_HOST_2: ${ALLOWED_HOST_2}
+      ALLOWED_HOSTS: ${ALLOWED_HOSTS}
     volumes:
       - ${POSTGRES_PRIMARY_DATA}:/var/lib/postgresql/data
       - ./postgres/certs:/var/lib/postgresql/certs
@@ -42,8 +41,7 @@ services:
       PGDATA: /var/lib/postgresql/data
       REPLICATION_USER: ${REPLICATION_USER}
       REPLICATION_PASSWORD: ${REPLICATION_PASSWORD}
-      ALLOWED_HOST_1: ${ALLOWED_HOST_1}
-      ALLOWED_HOST_2: ${ALLOWED_HOST_2}
+      ALLOWED_HOSTS: ${ALLOWED_HOSTS}
     volumes:
       - ${POSTGRES_REPLICA_DATA}:/var/lib/postgresql/data
       - ./postgres/certs:/var/lib/postgresql/certs:ro

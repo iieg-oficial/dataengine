@@ -1,27 +1,31 @@
 #!/bin/sh
 set -e
 
-HOST_1=$(echo "$ALLOWED_HOST_1" | awk '{print $1}')
-HOST_2=$(echo "$ALLOWED_HOST_2" | awk '{print $1}')
+echo "Configuring pg_hba.conf dynamically for ALLOWED_HOSTS: '$ALLOWED_HOSTS'"
 
-echo "Configuring pg_hba.conf with hosts: '$HOST_1', '$HOST_2'"
-
-cat > "$PGDATA/pg_hba.conf" <<EOF
+cat > "$PGDATA/pg_hba.conf" <<INNER_EOF
 local   all             all                                     scram-sha-256
 host    all             all             127.0.0.1/32            scram-sha-256
 host    all             all             ::1/128                 scram-sha-256
 
 hostssl all             all             172.16.0.0/12           scram-sha-256
+INNER_EOF
 
-hostssl all             all             ${HOST_1}/32    scram-sha-256
-hostssl all             all             ${HOST_2}/32    scram-sha-256
+if [ -n "$ALLOWED_HOSTS" ]; then
+    for HOST in $ALLOWED_HOSTS; do
+        echo "hostssl all             all             ${HOST}    scram-sha-256" >> "$PGDATA/pg_hba.conf"
+    done
+    echo "" >> "$PGDATA/pg_hba.conf" 
+    for HOST in $ALLOWED_HOSTS; do
+        echo "hostssl replication     ${REPLICATION_USER}    ${HOST}    scram-sha-256" >> "$PGDATA/pg_hba.conf"
+    done
+fi
 
-hostssl replication     ${REPLICATION_USER}    ${HOST_1}/32    scram-sha-256
-hostssl replication     ${REPLICATION_USER}    ${HOST_2}/32    scram-sha-256
+cat >> "$PGDATA/pg_hba.conf" <<INNER_EOF
 hostssl replication     ${REPLICATION_USER}    172.16.0.0/12           scram-sha-256
 
 host    all             all             0.0.0.0/0               reject
 host    all             all             ::/0                    reject
-EOF
+INNER_EOF
 
 echo "pg_hba.conf configured successfully."

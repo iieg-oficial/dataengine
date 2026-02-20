@@ -118,8 +118,7 @@ Copiar `.env.example` a `.env` y configurar:
 | `AO_BUCKET` | Nombre del bucket |
 | `AO_ACCESS_KEY` | Access key del AO |
 | `AO_SECRET_KEY` | Secret key del AO |
-| `ALLOWED_HOST_1` | IP del primer host autorizado para conectarse |
-| `ALLOWED_HOST_2` | IP del segundo host autorizado para conectarse |
+| `ALLOWED_HOSTS` | Lista de IPs (separadas por espacio) para conectarse |
 | `PG_BIND_ADDRESS` | IP de binding para los puertos expuestos (default: `0.0.0.0`) |
 
 ## Control de acceso
@@ -128,7 +127,7 @@ El acceso a PostgreSQL esta restringido a nivel de `pg_hba.conf`. Solo pueden co
 
 - Conexiones locales dentro del contenedor
 - Red interna de Docker (`172.16.0.0/12`)
-- Las IPs definidas en `ALLOWED_HOST_1` y `ALLOWED_HOST_2`
+- Las IPs definidas en `ALLOWED_HOSTS`
 
 Cualquier otra IP sera rechazada automaticamente.
 
