@@ -1,0 +1,87 @@
+name: dataengine
+
+services:
+  postgres-primary:
+    image: postgis/postgis:18-3.6-alpine
+    container_name: dataengine-primary
+    restart: unless-stopped
+    ports:
+      - "${PG_BIND_ADDRESS:-0.0.0.0}:${PG_PRIMARY_PORT:-5432}:5432"
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+      REPLICATION_USER: ${REPLICATION_USER}
+      REPLICATION_PASSWORD: ${REPLICATION_PASSWORD}
+      ALLOWED_HOSTS: ${ALLOWED_HOSTS}
+      PGDATA: ${PGDATA}
+    volumes:
+      - ${POSTGRES_PRIMARY_DATA}:/var/lib/postgresql/data
+      - ./postgres/certs:/var/lib/postgresql/certs
+      - ./postgres/primary/entrypoint.sh:/entrypoint-ssl.sh:ro
+      - ./postgres/primary/init:/docker-entrypoint-initdb.d
+      - ./postgres/primary/config/postgresql.conf:/etc/postgresql/postgresql.conf:ro
+      - ./restore:/restore
+    entrypoint: /entrypoint-ssl.sh
+    command: postgres -c config_file=/etc/postgresql/postgresql.conf
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - db-network
+
+  postgres-replica:
+    image: postgis/postgis:18-3.6-alpine
+    container_name: dataengine-replica
+    restart: unless-stopped
+    ports:
+      - "${PG_BIND_ADDRESS:-0.0.0.0}:${PG_REPLICA_PORT:-5433}:5432"
+    environment:
+      PGDATA: ${PGDATA}
+      REPLICATION_USER: ${REPLICATION_USER}
+      REPLICATION_PASSWORD: ${REPLICATION_PASSWORD}
+      ALLOWED_HOSTS: ${ALLOWED_HOSTS}
+    volumes:
+      - ${POSTGRES_REPLICA_DATA}:/var/lib/postgresql/data
+      - ./postgres/certs:/var/lib/postgresql/certs:ro
+      - ./postgres/replica/start-replica.sh:/start-replica.sh:ro
+      - ./postgres/primary/config/postgresql.conf:/etc/postgresql/postgresql.conf:ro
+    entrypoint: /start-replica.sh
+    depends_on:
+      postgres-primary:
+        condition: service_healthy
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U ${REPLICATION_USER} -d postgres" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - db-network
+
+  pg-backup:
+    build: ./backup
+    container_name: dataengine-backup
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+      AO_ENDPOINT: ${AO_ENDPOINT}
+      AO_BUCKET: ${AO_BUCKET}
+      AO_ACCESS_KEY: ${AO_ACCESS_KEY}
+      AO_SECRET_KEY: ${AO_SECRET_KEY}
+    volumes:
+      - ${BACKUP_DATA}:/backups
+      - ./postgres/certs:/certs:ro
+    depends_on:
+      postgres-primary:
+        condition: service_healthy
+    networks:
+      - db-network
+
+networks:
+  db-network:
+    name: dataengine-network
+    driver: bridge
