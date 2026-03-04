@@ -23,6 +23,8 @@ class MAPALABCardConfiguration(BaseConfiguration):
             'MAPALAB_CARD_DATA_WORKING_DIR': os.getenv('MAPALAB_CARD_DATA_WORKING_DIR'),
             'MAPALAB_CARD_DATA_ERROR_DIR': os.getenv('MAPALAB_CARD_DATA_ERROR_DIR'),
             'MAPALAB_CARD_INSERT_DATE': os.getenv('MAPALAB_CARD_INSERT_DATE'),
+            'MAPALAB_CARD_GOOGLE_CREDENTIALS_PATH': os.getenv('MAPALAB_CARD_GOOGLE_CREDENTIALS_PATH'),
+            'MAPALAB_CARD_GOOGLE_SHEET_URL': os.getenv('MAPALAB_CARD_GOOGLE_SHEET_URL'),
         }
 
     @property
@@ -56,6 +58,14 @@ class MAPALABCardConfiguration(BaseConfiguration):
     @property
     def insert_date(self) -> str | None:
         return self.get_property('MAPALAB_CARD_INSERT_DATE')
+
+    @property
+    def google_credentials_path(self) -> str | None:
+        return self.get_property('MAPALAB_CARD_GOOGLE_CREDENTIALS_PATH')
+
+    @property
+    def google_sheet_url(self) -> str | None:
+        return self.get_property('MAPALAB_CARD_GOOGLE_SHEET_URL')
 
     @property
     def db_url(self) -> str:
