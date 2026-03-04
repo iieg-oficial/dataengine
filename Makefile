@@ -26,6 +26,8 @@ help:
 	@echo "  certs           Generar certificados SSL (solo primera vez)"
 	@echo "  clean           Eliminar volumenes (DESTRUCTIVO)"
 	@echo ""
+	@echo "  card            Ingesta tarjetas desde csv track card capa"
+	@echo ""
 
 certs:
 	@if [ -f postgres/certs/server.crt ] && [ -f postgres/certs/server.key ] && [ -f postgres/certs/ca.crt ]; then \
@@ -97,3 +99,6 @@ clean:
 	@echo "ATENCION: Esto eliminara todos los datos de PostgreSQL y backups"
 	@read -p "Escribir 'si' para confirmar: " confirm && [ "$$confirm" = "si" ] || (echo "Cancelado" && exit 1)
 	docker compose down -v
+
+card:
+	python mapalab_card/run_bootstrap.py
