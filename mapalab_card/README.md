@@ -1,4 +1,4 @@
-# mapalab_card_test
+# mapalab_card
 
 Flujo ETL independiente para la ingesta de datos de **mapalab_card**.
 
@@ -65,8 +65,6 @@ cd mapalab_card_test
 # Usando la ruta configurada en .env (MAPALAB_CARD_DATA_WORKING_DIR)
 python run_bootstrap.py
 
-# Usando un CSV específico
-python run_bootstrap.py /ruta/al/archivo.csv
 ```
 
 ## Configuración
@@ -74,12 +72,12 @@ python run_bootstrap.py /ruta/al/archivo.csv
 Editar `core/mapalab_card/.env` con las credenciales de la base de datos:
 
 ```dotenv
-MAPALAB_CARD_DB_USER=useriieg
-MAPALAB_CARD_DB_PASSWORD=passiieg
-MAPALAB_CARD_DB_HOST=localhost
-MAPALAB_CARD_DB_PORT=5434
-MAPALAB_CARD_DB_NAME=postgres_iieg
-MAPALAB_CARD_DATA_WORKING_DIR=./data/mapalab_card/
+MAPALAB_CARD_DB_USER=<db_user>
+MAPALAB_CARD_DB_PASSWORD=<pass>
+MAPALAB_CARD_DB_HOST=<host>
+MAPALAB_CARD_DB_PORT=<port>
+MAPALAB_CARD_DB_NAME=<db_name>
+MAPALAB_CARD_DATA_WORKING_DIR=<woriking_dir>
 ```
 
 ## Airflow DAGs
