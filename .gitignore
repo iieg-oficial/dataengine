@@ -12,3 +12,4 @@ backup/mc
 mapalab_card/**/*.env
 mapalab_card/**/*.csv
 __pycache__/
+mapalab_card/iieg2025-cloud-bc7772dcc9c2.json
