@@ -13,8 +13,8 @@ class MapalabCardTabularSource(DataSource):
     mapper: MapalabCardMapper = field(default_factory=MapalabCardMapper)
 
     def get(self) -> pd.DataFrame:
-        csv_path = f'data/mapalab_card/mapalab_card.csv'
-        file_csv = pd.read_csv(csv_path)
+        csv_path = os.path.join(os.path.dirname(__file__), '..', '..', '..', 'data', 'mapalab_card', 'mapalab_card.csv')
+        csv_path = os.path.normpath(csv_path)
         Logger.info(f"📄 Leyendo CSV desde: {csv_path}")
         file_csv = pd.read_csv(csv_path)
         file_mapped = self.mapper.clean_csv(file_csv)

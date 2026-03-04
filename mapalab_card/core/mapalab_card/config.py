@@ -7,7 +7,7 @@ from core.config import BaseConfiguration
 
 @dataclass
 class MAPALABCardConfiguration(BaseConfiguration):
-    env_file: str = field(default='core/mapalab_card/.env')
+    env_file: str = field(default=os.path.join(os.path.dirname(os.path.abspath(__file__)), '.env'))
     config: dict[str, Any] = field(init=False)
 
     def __post_init__(self) -> None:
