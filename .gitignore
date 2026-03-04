@@ -9,3 +9,6 @@ volumes/
 postgres/certs/
 backup/mc
 *.log
+mapalab_card/**/*.env
+mapalab_card/**/*.csv
+__pycache__/
