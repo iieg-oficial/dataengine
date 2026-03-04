@@ -6,7 +6,7 @@ from core.utils.logger import Logger
 from core.mapalab_card.config import MAPALABCardConfiguration
 from core.databases.factories import DatabaseFactory, DatabaseType
 from core.schemas.mapalab_card import MapalabCard
-from sqlalchemy import MetaData, Table, delete
+from sqlalchemy import MetaData, Table, delete, text
 
 
 @dataclass
@@ -41,6 +41,10 @@ class MAPALABCardInsertDB(Action):
                 # Borrar todos los registros existentes antes de insertar
                 conn.execute(delete(tabla))
                 Logger.info("🗑️  Datos existentes eliminados de mapalab_card.")
+
+                # Reiniciar la secuencia del id a 1
+                conn.execute(text("ALTER SEQUENCE mapalab_card_id_seq RESTART WITH 1"))
+                Logger.info("🔄  Secuencia de id reiniciada.")
 
                 # Insertar todos los registros del CSV fuente
                 conn.execute(tabla.insert(), registros)
