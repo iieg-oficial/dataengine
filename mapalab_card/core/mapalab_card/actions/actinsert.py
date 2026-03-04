@@ -22,9 +22,18 @@ class MAPALABCardInsertDB(Action):
             db_url=mapalab_card_conf.db_url
         )
 
+        antes = len(card_df)
+        card_df = card_df.dropna(subset=["tema", "subtema"])
+        card_df = card_df[
+            (card_df["tema"].astype(str).str.strip() != "") &
+            (card_df["subtema"].astype(str).str.strip() != "")
+        ]
+        despues = len(card_df)
+        if antes != despues:
+            Logger.info(f"🚫 {antes - despues} registros descartados por tema/subtema nulos o vacíos.")
+
         registros = card_df.to_dict(orient="records")
 
-        # Agregar created_at con la fecha de ingesta (solo fecha, sin hora)
         fecha_ingesta = datetime.today().date()
         for registro in registros:
             registro['created_at'] = fecha_ingesta
@@ -38,15 +47,12 @@ class MAPALABCardInsertDB(Action):
 
         try:
             with engine.begin() as conn:
-                # Borrar todos los registros existentes antes de insertar
                 conn.execute(delete(tabla))
                 Logger.info("🗑️  Datos existentes eliminados de mapalab_card.")
 
-                # Reiniciar la secuencia del id a 1
                 conn.execute(text("ALTER SEQUENCE mapalab_card_id_seq RESTART WITH 1"))
                 Logger.info("🔄  Secuencia de id reiniciada.")
 
-                # Insertar todos los registros del CSV fuente
                 conn.execute(tabla.insert(), registros)
 
             Logger.info("✅ Inserción ejecutada correctamente.")
