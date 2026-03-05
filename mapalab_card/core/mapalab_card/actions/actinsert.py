@@ -6,6 +6,7 @@ from core.utils.logger import Logger
 from core.mapalab_card.config import MAPALABCardConfiguration
 from core.databases.factories import DatabaseFactory, DatabaseType
 from core.schemas.mapalab_card import MapalabCard
+from core.mapalab_card.actions.actbackup import MAPALABCardBackupDB
 from sqlalchemy import MetaData, Table, delete, text
 
 
@@ -46,6 +47,10 @@ class MAPALABCardInsertDB(Action):
         )
 
         try:
+            # Hacer backup de la tabla actual antes de borrar
+            backup_action = MAPALABCardBackupDB()
+            backup_action.execute()
+
             with engine.begin() as conn:
                 conn.execute(delete(tabla))
                 Logger.info("🗑️  Datos existentes eliminados de mapalab_card.")

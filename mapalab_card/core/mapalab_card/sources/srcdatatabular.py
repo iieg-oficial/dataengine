@@ -24,7 +24,6 @@ class MapalabCardTabularSource(DataSource):
             "https://www.googleapis.com/auth/drive.readonly"
         ]
 
-        # Resolver ruta de credenciales relativa al directorio de mapalab_card/
         creds_path = os.path.join(os.path.dirname(__file__), '..', '..', '..', config.google_credentials_path)
         creds_path = os.path.normpath(creds_path)
         creds = Credentials.from_service_account_file(creds_path, scopes=SCOPES)
