@@ -1,8 +1,12 @@
 -include .env
 export
 
+PROJECT_DIR := $(shell pwd)
+CONDA_BASE := $(shell conda info --base)
+CRON_JOB = 10 12 * * * cd $(PROJECT_DIR) && make card >> $(PROJECT_DIR)/logs/cron_card.log 2>&1
+
 .PHONY: help up down restart ps logs logs-primary logs-replica logs-backup \
-        shell shell-replica backup restore clean build certs
+        shell shell-replica backup restore clean build certs cron-install cron-remove
 
 help:
 	@echo ""
@@ -27,6 +31,9 @@ help:
 	@echo "  clean           Eliminar volumenes (DESTRUCTIVO)"
 	@echo ""
 	@echo "  card            Ingesta tarjetas desde csv track card capa"
+	@echo ""
+	@echo "  cron-install    Instalar cron job diario para make card"
+	@echo "  cron-remove     Remover cron job de ingesta"
 	@echo ""
 
 certs:
@@ -57,6 +64,7 @@ certs:
 
 up: certs
 	docker compose up -d
+	@$(MAKE) cron-install
 
 down:
 	docker compose down
@@ -95,10 +103,24 @@ backup:
 restore:
 	@bash restore/do-restore.sh $(FILE)
 
+restore-local:
+	@PGHOST=$(MAPALAB_CARD_DB_HOST) PGPORT=$(MAPALAB_CARD_DB_PORT) \
+	 PGUSER=$(MAPALAB_CARD_DB_USER) PGPASSWORD=$(MAPALAB_CARD_DB_PASSWORD) \
+	 PGDATABASE=$(MAPALAB_CARD_DB_NAME) \
+	 bash restore/do-restore-local.sh $(FILE)
+
 clean:
 	@echo "ATENCION: Esto eliminara todos los datos de PostgreSQL y backups"
 	@read -p "Escribir 'si' para confirmar: " confirm && [ "$$confirm" = "si" ] || (echo "Cancelado" && exit 1)
 	docker compose down -v
 
 card:
-	python mapalab_card/run_bootstrap.py
+	docker compose exec mapalab-card python run_bootstrap.py
+cron-install:
+	@mkdir -p $(PROJECT_DIR)/logs
+	@( crontab -l 2>/dev/null | grep -v 'make card' | grep -v 'SHELL=/bin/bash' ; echo "SHELL=/bin/bash" ; echo "$(CRON_JOB)" ) | crontab -
+	@echo "⏰ Cron job instalado: ingesta diaria a las 02:00 con conda env etl (logs en logs/)"
+
+cron-remove:
+	@( crontab -l 2>/dev/null | grep -v 'make card' | grep -v 'SHELL=/bin/bash' ) | crontab - || true
+	@echo "🛑 Cron job de ingesta removido"
