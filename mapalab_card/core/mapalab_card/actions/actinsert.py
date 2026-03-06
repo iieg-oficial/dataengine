@@ -12,8 +12,6 @@ from sqlalchemy import MetaData, Table, delete, text
 
 @dataclass
 class MAPALABCardInsertDB(Action):
-    """Acción de INSERT: borra los datos existentes y vuelve a insertar todo desde el CSV fuente."""
-
     def execute(self, input: pd.DataFrame) -> None:
         card_df = input
 
@@ -24,10 +22,11 @@ class MAPALABCardInsertDB(Action):
         )
 
         antes = len(card_df)
-        card_df = card_df.dropna(subset=["tema", "subtema"])
+        card_df["tema"] = card_df["tema"].fillna("").astype(str)
+        card_df["subtema"] = card_df["subtema"].fillna("").astype(str)
         card_df = card_df[
-            (card_df["tema"].astype(str).str.strip() != "") &
-            (card_df["subtema"].astype(str).str.strip() != "")
+            (card_df["tema"].str.strip() != "") &
+            (card_df["subtema"].str.strip() != "")
         ]
         despues = len(card_df)
         if antes != despues:
@@ -45,9 +44,7 @@ class MAPALABCardInsertDB(Action):
             metadata,
             autoload_with=engine
         )
-
         try:
-            # Hacer backup de la tabla actual antes de borrar
             backup_action = MAPALABCardBackupDB()
             backup_action.execute()
 

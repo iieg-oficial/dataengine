@@ -62,14 +62,16 @@ class MapalabCardMapper:
 
     def clean_csv(self, df: pd.DataFrame) -> pd.DataFrame:
         """Renombra columnas, parsea fechas y elimina columnas no mapeadas."""
+        df.columns = df.columns.str.strip()
         df = df.rename(columns=self.dict_map_columns)
 
-        df['fecha_ultima_actualizacion'] = pd.to_datetime(
-            df['fecha_ultima_actualizacion'],
-            format='%d/%m/%Y',
-            errors='coerce'
-        )
-        df['fecha_ultima_actualizacion'] = df['fecha_ultima_actualizacion'].replace({pd.NaT: None})
+        if 'fecha_ultima_actualizacion' in df.columns:
+            df['fecha_ultima_actualizacion'] = pd.to_datetime(
+                df['fecha_ultima_actualizacion'],
+                format='%d/%m/%Y',
+                errors='coerce'
+            )
+            df['fecha_ultima_actualizacion'] = df['fecha_ultima_actualizacion'].replace({pd.NaT: None})
 
         # Eliminar columnas que no están en el mapeo
         valid_columns = set(self.dict_map_columns.values())

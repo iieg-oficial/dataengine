@@ -11,8 +11,6 @@ from sqlalchemy import MetaData, Table, select
 
 @dataclass
 class MAPALABCardBackupDB(Action):
-    """Acción de BACKUP: exporta la tabla actual de mapalab_card a un CSV antes de borrarla."""
-
     def execute(self, input: pd.DataFrame = None) -> None:
         mapalab_card_conf = MAPALABCardConfiguration()
         engine = DatabaseFactory.get_engine(
@@ -33,10 +31,11 @@ class MAPALABCardBackupDB(Action):
                 rows = result.fetchall()
                 columns = result.keys()
 
+            Logger.info(f"Len rows: {len(rows)}")
+            Logger.info(f"Rows preview: {rows[:5]}")
             if not rows:
-                Logger.info("ℹ️  La tabla mapalab_card está vacía, no se genera backup.")
                 return
-
+            
             df_backup = pd.DataFrame(rows, columns=columns)
 
             # Directorio de backups relativo al proyecto

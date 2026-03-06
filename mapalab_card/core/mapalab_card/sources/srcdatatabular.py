@@ -11,7 +11,6 @@ from google.oauth2.service_account import Credentials
 
 @dataclass
 class MapalabCardTabularSource(DataSource):
-    """Lee el CSV desde sources/mapalab_card.csv y lo limpia/mapea."""
     input: str = field(default=os.path.join(os.path.dirname(__file__), 'mapalab_card.csv'))
     mapper: MapalabCardMapper = field(default_factory=MapalabCardMapper)
 
@@ -31,6 +30,8 @@ class MapalabCardTabularSource(DataSource):
 
         Logger.info(f"📄 Leyendo desde Google Sheets: {config.google_sheet_url}")
         file_sheet = client.open_by_url(config.google_sheet_url)
+        file_sheet.fetch_sheet_metadata()
+        Logger.info("🔄 Cache actualizado desde Google Sheets.")
         file_csv = pd.DataFrame(file_sheet.sheet1.get_all_records())
         
         file_mapped = self.mapper.clean_csv(file_csv)

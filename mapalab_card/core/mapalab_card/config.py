@@ -25,6 +25,7 @@ class MAPALABCardConfiguration(BaseConfiguration):
             'MAPALAB_CARD_INSERT_DATE': os.getenv('MAPALAB_CARD_INSERT_DATE'),
             'MAPALAB_CARD_GOOGLE_CREDENTIALS_PATH': os.getenv('MAPALAB_CARD_GOOGLE_CREDENTIALS_PATH'),
             'MAPALAB_CARD_GOOGLE_SHEET_URL': os.getenv('MAPALAB_CARD_GOOGLE_SHEET_URL'),
+            'MAPALAB_CARD_DB_SSLMODE': os.getenv('MAPALAB_CARD_DB_SSLMODE', 'disable'),
         }
 
     @property
@@ -68,5 +69,9 @@ class MAPALABCardConfiguration(BaseConfiguration):
         return self.get_property('MAPALAB_CARD_GOOGLE_SHEET_URL')
 
     @property
+    def db_sslmode(self) -> str:
+        return self.get_property('MAPALAB_CARD_DB_SSLMODE', 'disable')
+
+    @property
     def db_url(self) -> str:
-        return f'postgresql+psycopg2://{self.db_user}:{self.db_password}@{self.db_host}:{self.db_port}/{self.db_name}'
+        return f'postgresql+psycopg2://{self.db_user}:{self.db_password}@{self.db_host}:{self.db_port}/{self.db_name}?sslmode={self.db_sslmode}'
