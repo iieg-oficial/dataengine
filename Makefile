@@ -2,8 +2,7 @@
 export
 
 PROJECT_DIR := $(shell pwd)
-CONDA_BASE := $(shell conda info --base)
-CRON_JOB = 10 12 * * * cd $(PROJECT_DIR) && make card >> $(PROJECT_DIR)/logs/cron_card.log 2>&1
+CRON_JOB = $(cron_minute) $(cron_hour) * * * cd $(PROJECT_DIR) && make card >> $(PROJECT_DIR)/logs/cron_card.log 2>&1
 
 .PHONY: help up down restart ps logs logs-primary logs-replica logs-backup \
         shell shell-replica backup restore clean build certs cron-install cron-remove
@@ -119,7 +118,7 @@ card:
 cron-install:
 	@mkdir -p $(PROJECT_DIR)/logs
 	@( crontab -l 2>/dev/null | grep -v 'make card' | grep -v 'SHELL=/bin/bash' ; echo "SHELL=/bin/bash" ; echo "$(CRON_JOB)" ) | crontab -
-	@echo "⏰ Cron job instalado: ingesta diaria a las 02:00 con conda env etl (logs en logs/)"
+	@echo "⏰ Cron job instalado: ingesta diaria a las $(cron_hour):$(cron_minute) con conda env etl (logs en logs/)"
 
 cron-remove:
 	@( crontab -l 2>/dev/null | grep -v 'make card' | grep -v 'SHELL=/bin/bash' ) | crontab - || true
