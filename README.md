@@ -47,8 +47,13 @@ make shell            # psql conectado al primary
 make shell-replica    # psql conectado a la replica
 
 # Respaldos
-make backup                          # Respaldo manual
-make restore FILE=mi_dump.dump      # Restaurar dump
+make backup                      # Respaldo manual
+make restore FILE=mi_dump.dump   # Restaurar dump
+
+# Cards
+make card            # Ingesta tarjetas desde csv track card capa
+make cron-install    # Instalar cron job diario para make card
+make cron-remove     # Remover cron job de ingesta
 ```
 
 ## Restaurar un dump existente
@@ -72,6 +77,13 @@ Formatos soportados:
 - `.dump` — custom format de `pg_dump` (recomendado)
 - `.sql` — SQL plano
 - `.sql.gz` — SQL comprimido con gzip
+
+
+## ETL mapalab-card
+```bash
+docker compose exec mapalab-card python run_bootstrap.py
+```
+
 
 ## Politica de respaldos
 
