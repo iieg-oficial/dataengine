@@ -87,13 +87,11 @@ docker compose exec mapalab-card python run_bootstrap.py
 
 ## Politica de respaldos
 
-Los respaldos se ejecutan automaticamente a las **2:00 AM** todos los dias.
+Los respaldos se ejecutan automaticamente a las **8:00 AM** todos los dias.
 
 | Tipo | Cuando | Retencion |
 |------|--------|-----------|
-| Diario | Lunes a sabado | 7 dias |
-| Semanal | Domingos | 4 semanas |
-| Mensual | Dia 1 de cada mes | 3 meses |
+| Diario | Lunes a domingo | 7 dias |
 
 Cada respaldo se sube automaticamente al AO despues de crearse. Los archivos locales se guardan en `./volumes/backups/`.
 
