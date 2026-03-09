@@ -44,11 +44,20 @@ class MAPALABCardBackupDB(Action):
             backup_dir = os.path.normpath(backup_dir)
             os.makedirs(backup_dir, exist_ok=True)
 
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            backup_file = os.path.join(backup_dir, f"mapalab_card_backup_{timestamp}.csv")
+            fecha = datetime.now().strftime("%Y%m%d")
+            backup_file = os.path.join(backup_dir, f"mapalab_card_backup_{fecha}.csv")
 
             df_backup.to_csv(backup_file, index=False, encoding="utf-8")
             Logger.info(f"💾 Backup generado: {backup_file} ({len(df_backup)} registros)")
+
+            csvs = sorted(
+                [f for f in os.listdir(backup_dir) if f.endswith(".csv")],
+                key=lambda f: os.path.getmtime(os.path.join(backup_dir, f)),
+                reverse=True
+            )
+            for f in csvs[7:]:
+                os.remove(os.path.join(backup_dir, f))
+                Logger.info(f"🗑️ Backup antiguo eliminado: {f}")
 
         except Exception as e:
             Logger.error(f"❌ Error durante el backup: {e}")

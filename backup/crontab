@@ -1,2 +1,2 @@
-0 2 * * * /scripts/backup.sh >> /var/log/backup.log 2>&1
+0 2 * * 0 /scripts/backup.sh >> /var/log/backup.log 2>&1
 0 0 * * 1 cp /var/log/backup.log /var/log/backup.log.old && : > /var/log/backup.log
