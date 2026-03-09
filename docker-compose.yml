@@ -98,7 +98,7 @@ services:
       MAPALAB_CARD_GOOGLE_CREDENTIALS_PATH: ${MAPALAB_CARD_GOOGLE_CREDENTIALS_PATH:-/app/iieg2025-cloud-bc7772dcc9c2.json}
       MAPALAB_CARD_GOOGLE_SHEET_URL: ${MAPALAB_CARD_GOOGLE_SHEET_URL}
     volumes:
-      - ./mapalab_card/data/backups:/app/data/backups
+      - ${BACKUP_DATA}/mapalab_card:/app/data/backups
     depends_on:
       postgres-primary:
         condition: service_healthy
