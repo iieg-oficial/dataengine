@@ -104,7 +104,7 @@ shell-replica:
 	docker compose exec postgres-replica psql -U $(POSTGRES_USER) -d $(POSTGRES_DB)
 
 backup:
-	docker compose exec pg-backup /scripts/backup.sh
+	@bash backup/do-backup.sh
 
 restore:
 	@bash restore/do-restore.sh $(FILE)
