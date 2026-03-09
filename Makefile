@@ -1,8 +1,11 @@
 -include .env
 export
 
+FW_PORTS = 22 $(PG_PRIMARY_PORT) $(PG_REPLICA_PORT)
+
 .PHONY: help up down restart ps logs logs-primary logs-replica logs-backup \
-        shell shell-replica backup restore clean build certs
+        shell shell-replica backup restore clean build certs \
+        fw-status fw-setup fw-reset
 
 help:
 	@echo ""
@@ -25,6 +28,10 @@ help:
 	@echo ""
 	@echo "  certs           Generar certificados SSL (solo primera vez)"
 	@echo "  clean           Eliminar volumenes (DESTRUCTIVO)"
+	@echo ""
+	@echo "  fw-status       Ver reglas actuales del firewall"
+	@echo "  fw-setup        Aplicar reglas de firewall (usa ALLOWED_HOSTS)"
+	@echo "  fw-reset        Resetear firewall (DESTRUCTIVO)"
 	@echo ""
 
 certs:
@@ -53,7 +60,7 @@ certs:
 		echo "Certificados SSL generados en postgres/certs/"; \
 	fi
 
-up: certs
+up: certs fw-setup
 	docker compose up -d
 
 down:
@@ -97,3 +104,29 @@ clean:
 	@echo "ATENCION: Esto eliminara todos los datos de PostgreSQL y backups"
 	@read -p "Escribir 'si' para confirmar: " confirm && [ "$$confirm" = "si" ] || (echo "Cancelado" && exit 1)
 	docker compose down -v
+
+fw-status:
+	sudo ufw status numbered
+
+fw-setup:
+	@which ufw > /dev/null 2>&1 || { echo "Error: ufw no esta instalado. Ejecutar: sudo apt install ufw"; exit 1; }
+	@test -n "$(ALLOWED_HOSTS)" || { echo "Error: ALLOWED_HOSTS no definida en .env"; exit 1; }
+	@echo "Configurando firewall..."
+	sudo ufw default deny incoming
+	sudo ufw default allow outgoing
+	@for host in $(ALLOWED_HOSTS); do \
+		for port in $(FW_PORTS); do \
+			echo "Permitiendo $$host -> puerto $$port/tcp"; \
+			sudo ufw allow from $$host to any port $$port proto tcp 2>&1 || true; \
+		done; \
+	done
+	sudo ufw --force enable
+	@echo ""
+	sudo ufw status numbered
+	@echo "Firewall configurado."
+
+fw-reset:
+	@echo "ATENCION: Esto eliminara todas las reglas del firewall"
+	@read -p "Escribir 'si' para confirmar: " confirm && [ "$$confirm" = "si" ] || { echo "Cancelado"; exit 1; }
+	sudo ufw --force reset
+	@echo "Firewall reseteado."
