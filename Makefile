@@ -75,9 +75,10 @@ up: certs fw-setup
 down:
 	docker compose down
 
-restart:
+restart: fw-setup
 	docker compose down
 	docker compose up -d
+	@$(MAKE) cron-install
 
 build:
 	docker compose build --no-cache
