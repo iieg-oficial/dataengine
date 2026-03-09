@@ -4,12 +4,6 @@ from dataclasses import dataclass
 
 @dataclass
 class MapalabCardMapper:
-    """Limpia y mapea las columnas del CSV fuente a los nombres de la BD.
-
-    El diccionario dict_map_columns traduce los encabezados originales del CSV
-    a los nombres de columna definidos en la migración/schema.
-    """
-
     dict_map_columns = {
         "Tema": "tema",
         "Subtema": "subtema",
@@ -61,7 +55,6 @@ class MapalabCardMapper:
     }
 
     def clean_csv(self, df: pd.DataFrame) -> pd.DataFrame:
-        """Renombra columnas, parsea fechas y elimina columnas no mapeadas."""
         df.columns = df.columns.str.strip()
         df = df.rename(columns=self.dict_map_columns)
 
@@ -73,7 +66,6 @@ class MapalabCardMapper:
             )
             df['fecha_ultima_actualizacion'] = df['fecha_ultima_actualizacion'].replace({pd.NaT: None})
 
-        # Eliminar columnas que no están en el mapeo
         valid_columns = set(self.dict_map_columns.values())
         for col in list(df.columns):
             if col not in valid_columns:

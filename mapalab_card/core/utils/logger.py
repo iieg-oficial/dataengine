@@ -8,7 +8,6 @@ from typing import Any
 FORMAT = "%(message)s"
 FILE_FORMAT = "%(asctime)s [%(levelname)s] %(message)s"
 
-# Directorio de logs en la raíz del proyecto
 _LOG_DIR = os.path.join(os.path.dirname(__file__), '..', '..', '..', 'logs')
 _LOG_DIR = os.path.normpath(_LOG_DIR)
 os.makedirs(_LOG_DIR, exist_ok=True)

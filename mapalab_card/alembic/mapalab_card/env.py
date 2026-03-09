@@ -6,24 +6,15 @@ from core.mapalab_card.config import MAPALABCardConfiguration
 
 mapalab_card_conf = MAPALABCardConfiguration(env_file='core/mapalab_card/.env')
 
-# this is the Alembic Config object, which provides
-# access to the values within the .ini file in use.
 config = context.config
 
-# Interpret the config file for Python logging.
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
-# Model's MetaData for 'autogenerate' support
 target_metadata = MAPALABCardBase.metadata
 
 
 def run_migrations_offline() -> None:
-    """Run migrations in 'offline' mode.
-
-    Configures the context with just a URL, useful for generating
-    SQL scripts without connecting to the database.
-    """
     url = config.get_main_option("sqlalchemy.url")
     context.configure(
         url=url,
@@ -37,10 +28,6 @@ def run_migrations_offline() -> None:
 
 
 def run_migrations_online() -> None:
-    """Run migrations in 'online' mode.
-
-    Creates an Engine and associates a connection with the context.
-    """
     engine = DatabaseFactory.get_engine(
         db_type=DatabaseType.MAPALAB_CARD,
         db_url=mapalab_card_conf.db_url

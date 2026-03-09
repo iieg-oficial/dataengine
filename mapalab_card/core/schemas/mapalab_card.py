@@ -5,10 +5,6 @@ MAPALABCardBase = declarative_base()
 
 
 class MapalabCard(MAPALABCardBase):
-    """Modelo SQLAlchemy sincronizado con la migración 377c681a4c1c.
-
-    Contiene las 47 columnas definidas en el upgrade de la migración inicial.
-    """
     __tablename__ = 'mapalab_card'
 
     id = Column(Integer, primary_key=True, autoincrement=True)
@@ -24,7 +20,6 @@ class MapalabCard(MAPALABCardBase):
     frecuencia_actualizacion = Column(String(1000), nullable=True)
     fecha_ultima_actualizacion = Column(Date, nullable=True)
 
-    # Numeralia 01-08: valor, nombre, simbolo
     numeralia_01_valor = Column(String(1000), nullable=True)
     numeralia_01_nombre = Column(String(1000), nullable=True)
     numeralia_01_simbolo = Column(String(1000), nullable=True)

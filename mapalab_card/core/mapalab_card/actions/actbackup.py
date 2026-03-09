@@ -38,7 +38,6 @@ class MAPALABCardBackupDB(Action):
             
             df_backup = pd.DataFrame(rows, columns=columns)
 
-            # Directorio de backups relativo al proyecto
             backup_dir = os.path.join(
                 os.path.dirname(__file__), '..', '..', '..', 'data', 'backups'
             )
