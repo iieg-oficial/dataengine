@@ -13,7 +13,7 @@ class MapalabCardMapper:
         "Nombre de la capa en BD": "nombre_capa_db",
         "Nombre de la capa en GeoServer": "nombre_capa_geoserver",
         "Nombre de la capa para el usuario": "nombre_capa_usuario",
-        "Descripción (número de caracteres recomendado 255-300) ": "descripcion",
+        "Descripción (número de caracteres recomendado 255-300)": "descripcion",
         "Frecuencia de actualización": "frecuencia_actualizacion",
         "Fecha de última actualización IIEG": "fecha_ultima_actualizacion",
         "Numeralia 01 - Valor": "numeralia_01_valor",
