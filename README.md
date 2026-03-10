@@ -47,8 +47,13 @@ make shell            # psql conectado al primary
 make shell-replica    # psql conectado a la replica
 
 # Respaldos
-make backup                          # Respaldo manual
-make restore FILE=mi_dump.dump      # Restaurar dump
+make backup                      # Respaldo manual
+make restore FILE=mi_dump.dump   # Restaurar dump
+
+# Cards
+make card            # Ingesta tarjetas desde csv track card capa
+make cron-install    # Instalar cron job diario para make card
+make cron-remove     # Remover cron job de ingesta
 ```
 
 ## Restaurar un dump existente
@@ -73,15 +78,20 @@ Formatos soportados:
 - `.sql` — SQL plano
 - `.sql.gz` — SQL comprimido con gzip
 
+
+## ETL mapalab-card
+```bash
+docker compose exec mapalab-card python run_bootstrap.py
+```
+
+
 ## Politica de respaldos
 
-Los respaldos se ejecutan automaticamente a las **2:00 AM** todos los dias.
+Los respaldos se ejecutan automaticamente a las **8:00 AM** todos los dias.
 
 | Tipo | Cuando | Retencion |
 |------|--------|-----------|
-| Diario | Lunes a sabado | 7 dias |
-| Semanal | Domingos | 4 semanas |
-| Mensual | Dia 1 de cada mes | 3 meses |
+| Diario | Lunes a domingo | 7 dias |
 
 Cada respaldo se sube automaticamente al AO despues de crearse. Los archivos locales se guardan en `./volumes/backups/`.
 
