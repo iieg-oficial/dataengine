@@ -23,7 +23,14 @@ HEADER=$(od -A n -N 5 -t c "$FILEPATH" 2>/dev/null | tr -d ' \n')
 
 if echo "$HEADER" | grep -q "PGDMP"; then
     echo "Detectado: custom format"
-    pg_restore -U "$POSTGRES_USER" -d "$POSTGRES_DB" --no-owner --no-acl "$FILEPATH"
+    set +e
+    pg_restore -U "$POSTGRES_USER" -d "$POSTGRES_DB" --clean --if-exists --no-owner --no-acl "$FILEPATH"
+    RC=$?
+    set -e
+    if [ "$RC" -gt 1 ]; then
+        echo "Error fatal en pg_restore (codigo: $RC)"
+        exit "$RC"
+    fi
 elif echo "$FILE" | grep -qE '\.gz$'; then
     echo "Detectado: sql comprimido"
     gunzip -c "$FILEPATH" | psql -U "$POSTGRES_USER" -d "$POSTGRES_DB"

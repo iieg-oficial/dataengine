@@ -1,0 +1,1 @@
+from core.mapalab_card.sources.srcdatatabular import MapalabCardTabularSource
