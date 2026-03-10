@@ -1,8 +1,14 @@
 -include .env
 export
 
+PROJECT_DIR := $(shell pwd)
+CRON_JOB = $(cron_minute) $(cron_hour) * * * cd $(PROJECT_DIR) && make card >> $(PROJECT_DIR)/logs/cron_card.log 2>&1
+FW_PORTS = 22 $(PG_PRIMARY_PORT) $(PG_REPLICA_PORT)
+
 .PHONY: help up down restart ps logs logs-primary logs-replica logs-backup \
-        shell shell-replica backup restore clean build certs
+        shell shell-replica backup restore clean build certs \
+        cron-install cron-remove card \
+        fw-status fw-setup fw-reset
 
 help:
 	@echo ""
@@ -25,6 +31,15 @@ help:
 	@echo ""
 	@echo "  certs           Generar certificados SSL (solo primera vez)"
 	@echo "  clean           Eliminar volumenes (DESTRUCTIVO)"
+	@echo ""
+	@echo "  card            Ingesta tarjetas desde csv track card capa"
+	@echo ""
+	@echo "  cron-install    Instalar cron job diario para make card"
+	@echo "  cron-remove     Remover cron job de ingesta"
+	@echo ""
+	@echo "  fw-status       Ver reglas actuales del firewall"
+	@echo "  fw-setup        Aplicar reglas de firewall (usa ALLOWED_HOSTS)"
+	@echo "  fw-reset        Resetear firewall (DESTRUCTIVO)"
 	@echo ""
 
 certs:
@@ -53,15 +68,17 @@ certs:
 		echo "Certificados SSL generados en postgres/certs/"; \
 	fi
 
-up: certs
+up: certs fw-setup
 	docker compose up -d
+	@$(MAKE) cron-install
 
 down:
 	docker compose down
 
-restart:
+restart: fw-setup
 	docker compose down
 	docker compose up -d
+	@$(MAKE) cron-install
 
 build:
 	docker compose build --no-cache
@@ -88,12 +105,54 @@ shell-replica:
 	docker compose exec postgres-replica psql -U $(POSTGRES_USER) -d $(POSTGRES_DB)
 
 backup:
-	docker compose exec pg-backup /scripts/backup.sh
+	@bash backup/do-backup.sh
 
 restore:
 	@bash restore/do-restore.sh $(FILE)
+
+restore-local:
+	@PGHOST=$(MAPALAB_CARD_DB_HOST) PGPORT=$(MAPALAB_CARD_DB_PORT) \
+	 PGUSER=$(MAPALAB_CARD_DB_USER) PGPASSWORD=$(MAPALAB_CARD_DB_PASSWORD) \
+	 PGDATABASE=$(MAPALAB_CARD_DB_NAME) \
+	 bash restore/do-restore-local.sh $(FILE)
 
 clean:
 	@echo "ATENCION: Esto eliminara todos los datos de PostgreSQL y backups"
 	@read -p "Escribir 'si' para confirmar: " confirm && [ "$$confirm" = "si" ] || (echo "Cancelado" && exit 1)
 	docker compose down -v
+
+card:
+	docker compose exec mapalab-card python run_bootstrap.py
+cron-install:
+	@mkdir -p $(PROJECT_DIR)/logs
+	@( crontab -l 2>/dev/null | grep -v 'make card' | grep -v 'SHELL=/bin/bash' ; echo "SHELL=/bin/bash" ; echo "$(CRON_JOB)" ) | crontab -
+	@echo "⏰ Cron job instalado: ingesta diaria a las $(cron_hour):$(cron_minute) con conda env etl (logs en logs/)"
+
+cron-remove:
+	@( crontab -l 2>/dev/null | grep -v 'make card' | grep -v 'SHELL=/bin/bash' ) | crontab - || true
+	@echo "🛑 Cron job de ingesta removido"
+fw-status:
+	sudo ufw status numbered
+
+fw-setup:
+	@which ufw > /dev/null 2>&1 || { echo "Error: ufw no esta instalado. Ejecutar: sudo apt install ufw"; exit 1; }
+	@test -n "$(ALLOWED_HOSTS)" || { echo "Error: ALLOWED_HOSTS no definida en .env"; exit 1; }
+	@echo "Configurando firewall..."
+	sudo ufw default deny incoming
+	sudo ufw default allow outgoing
+	@for host in $(ALLOWED_HOSTS); do \
+		for port in $(FW_PORTS); do \
+			echo "Permitiendo $$host -> puerto $$port/tcp"; \
+			sudo ufw allow from $$host to any port $$port proto tcp 2>&1 || true; \
+		done; \
+	done
+	sudo ufw --force enable
+	@echo ""
+	sudo ufw status numbered
+	@echo "Firewall configurado."
+
+fw-reset:
+	@echo "ATENCION: Esto eliminara todas las reglas del firewall"
+	@read -p "Escribir 'si' para confirmar: " confirm && [ "$$confirm" = "si" ] || { echo "Cancelado"; exit 1; }
+	sudo ufw --force reset
+	@echo "Firewall reseteado."
