@@ -59,11 +59,18 @@ class MapalabCardMapper:
         df = df.rename(columns=self.dict_map_columns)
 
         if 'fecha_ultima_actualizacion' in df.columns:
-            df['fecha_ultima_actualizacion'] = df['fecha_ultima_actualizacion'].astype(str).str.strip()
-            df['fecha_ultima_actualizacion'] = df['fecha_ultima_actualizacion'].apply(
-                lambda v: pd.to_datetime(v, format='%d/%m/%Y', errors='coerce').strftime('%Y-%m-%d')
-                if '/' in str(v) else (v if v and v not in ('', 'nan', 'None', 'NaT') else None)
-            )
+            def _parse_fecha(v):
+                s = str(v).strip() if pd.notna(v) else ''
+                if not s or s in ('nan', 'None', 'NaT'):
+                    return None
+                if '/' in s:
+                    dt = pd.to_datetime(s, format='%d/%m/%Y', errors='coerce')
+                    return dt.strftime('%Y-%m-%d') if pd.notna(dt) else None
+                try:
+                    return str(int(float(s)))
+                except (ValueError, OverflowError):
+                    return s
+            df['fecha_ultima_actualizacion'] = df['fecha_ultima_actualizacion'].apply(_parse_fecha)
 
         valid_columns = set(self.dict_map_columns.values())
         for col in list(df.columns):
