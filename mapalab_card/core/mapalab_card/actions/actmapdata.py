@@ -58,8 +58,9 @@ class MapalabCardMapper:
         df.columns = df.columns.str.strip()
         df = df.rename(columns=self.dict_map_columns)
 
-        str_cols = df.select_dtypes(include='object').columns
-        df[str_cols] = df[str_cols].apply(lambda c: c.str.strip())
+        for col in df.columns:
+            df[col] = df[col].astype(str).str.strip()
+            df[col] = df[col].replace({'': None, 'nan': None, 'None': None, 'NaN': None})
 
         if 'fecha_ultima_actualizacion' in df.columns:
             def _parse_fecha(v):
