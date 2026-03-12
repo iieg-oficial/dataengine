@@ -3,12 +3,10 @@ export
 
 PROJECT_DIR := $(shell pwd)
 CRON_JOB = $(cron_minute) $(cron_hour) * * * cd $(PROJECT_DIR) && make card >> $(PROJECT_DIR)/logs/cron_card.log 2>&1
-FW_PORTS = 22 $(PG_PRIMARY_PORT) $(PG_REPLICA_PORT)
 
 .PHONY: help up down restart ps logs logs-primary logs-replica logs-backup \
         shell shell-replica backup restore clean build certs \
-        cron-install cron-remove card \
-        fw-status fw-setup fw-reset
+        cron-install cron-remove card
 
 help:
 	@echo ""
@@ -37,10 +35,6 @@ help:
 	@echo "  cron-install    Instalar cron job diario para make card"
 	@echo "  cron-remove     Remover cron job de ingesta"
 	@echo ""
-	@echo "  fw-status       Ver reglas actuales del firewall"
-	@echo "  fw-setup        Aplicar reglas de firewall (usa ALLOWED_HOSTS)"
-	@echo "  fw-reset        Resetear firewall (DESTRUCTIVO)"
-	@echo ""
 
 certs:
 	@if [ -f postgres/certs/server.crt ] && [ -f postgres/certs/server.key ] && [ -f postgres/certs/ca.crt ]; then \
@@ -68,14 +62,14 @@ certs:
 		echo "Certificados SSL generados en postgres/certs/"; \
 	fi
 
-up: certs fw-setup
+up: certs
 	docker compose up -d
 	@$(MAKE) cron-install
 
 down:
 	docker compose down
 
-restart: fw-setup
+restart:
 	docker compose down
 	docker compose up -d
 	@$(MAKE) cron-install
@@ -131,28 +125,3 @@ cron-install:
 cron-remove:
 	@( crontab -l 2>/dev/null | grep -v 'make card' | grep -v 'SHELL=/bin/bash' ) | crontab - || true
 	@echo "🛑 Cron job de ingesta removido"
-fw-status:
-	sudo ufw status numbered
-
-fw-setup:
-	@which ufw > /dev/null 2>&1 || { echo "Error: ufw no esta instalado. Ejecutar: sudo apt install ufw"; exit 1; }
-	@test -n "$(ALLOWED_HOSTS)" || { echo "Error: ALLOWED_HOSTS no definida en .env"; exit 1; }
-	@echo "Configurando firewall..."
-	sudo ufw default deny incoming
-	sudo ufw default allow outgoing
-	@for host in $(ALLOWED_HOSTS); do \
-		for port in $(FW_PORTS); do \
-			echo "Permitiendo $$host -> puerto $$port/tcp"; \
-			sudo ufw allow from $$host to any port $$port proto tcp 2>&1 || true; \
-		done; \
-	done
-	sudo ufw --force enable
-	@echo ""
-	sudo ufw status numbered
-	@echo "Firewall configurado."
-
-fw-reset:
-	@echo "ATENCION: Esto eliminara todas las reglas del firewall"
-	@read -p "Escribir 'si' para confirmar: " confirm && [ "$$confirm" = "si" ] || { echo "Cancelado"; exit 1; }
-	sudo ufw --force reset
-	@echo "Firewall reseteado."
