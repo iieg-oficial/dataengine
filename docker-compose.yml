@@ -11,8 +11,6 @@ services:
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_DB: ${POSTGRES_DB}
-      REPLICATION_USER: ${REPLICATION_USER}
-      REPLICATION_PASSWORD: ${REPLICATION_PASSWORD}
       ALLOWED_HOSTS: ${ALLOWED_HOSTS}
       PGDATA: ${PGDATA}
     volumes:
@@ -26,34 +24,6 @@ services:
     command: postgres -c config_file=/etc/postgresql/postgresql.conf
     healthcheck:
       test: [ "CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}" ]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-    networks:
-      - db-network
-
-  postgres-replica:
-    image: postgis/postgis:18-3.6-alpine
-    container_name: dataengine-replica
-    restart: unless-stopped
-    ports:
-      - "${PG_BIND_ADDRESS:-0.0.0.0}:${PG_REPLICA_PORT:-5433}:5432"
-    environment:
-      PGDATA: ${PGDATA}
-      REPLICATION_USER: ${REPLICATION_USER}
-      REPLICATION_PASSWORD: ${REPLICATION_PASSWORD}
-      ALLOWED_HOSTS: ${ALLOWED_HOSTS}
-    volumes:
-      - ${POSTGRES_REPLICA_DATA}:/var/lib/postgresql/data
-      - ./postgres/certs:/var/lib/postgresql/certs:ro
-      - ./postgres/replica/start-replica.sh:/start-replica.sh:ro
-      - ./postgres/primary/config/postgresql.conf:/etc/postgresql/postgresql.conf:ro
-    entrypoint: /start-replica.sh
-    depends_on:
-      postgres-primary:
-        condition: service_healthy
-    healthcheck:
-      test: [ "CMD-SHELL", "pg_isready -U ${REPLICATION_USER} -d postgres" ]
       interval: 10s
       timeout: 5s
       retries: 5
