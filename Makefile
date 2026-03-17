@@ -4,9 +4,10 @@ export
 PROJECT_DIR := $(shell pwd)
 CRON_JOB = $(cron_minute) $(cron_hour) * * * cd $(PROJECT_DIR) && make card >> $(PROJECT_DIR)/logs/cron_card.log 2>&1
 
-.PHONY: help up down restart ps logs logs-primary logs-replica logs-backup \
-        shell shell-replica backup restore clean build certs \
-        cron-install cron-remove card
+.PHONY: help up down restart ps logs logs-primary logs-backup \
+        shell backup restore clean build certs \
+        cron-install cron-remove card \
+        fw-status fw-setup fw-reset
 
 help:
 	@echo ""
@@ -18,11 +19,9 @@ help:
 	@echo ""
 	@echo "  logs            Logs de todos los servicios"
 	@echo "  logs-primary    Logs del primary"
-	@echo "  logs-replica    Logs de la replica"
 	@echo "  logs-backup     Logs del backup"
 	@echo ""
 	@echo "  shell           Consola psql en primary"
-	@echo "  shell-replica   Consola psql en replica (solo lectura)"
 	@echo ""
 	@echo "  backup          Ejecutar respaldo manual"
 	@echo "  restore         Restaurar dump (auto-detecta si solo hay un archivo)"
@@ -86,17 +85,11 @@ logs:
 logs-primary:
 	docker compose logs -f --tail=100 postgres-primary
 
-logs-replica:
-	docker compose logs -f --tail=100 postgres-replica
-
 logs-backup:
 	docker compose logs -f --tail=100 pg-backup
 
 shell:
 	docker compose exec postgres-primary psql -U $(POSTGRES_USER) -d $(POSTGRES_DB)
-
-shell-replica:
-	docker compose exec postgres-replica psql -U $(POSTGRES_USER) -d $(POSTGRES_DB)
 
 backup:
 	@bash backup/do-backup.sh
