@@ -11,6 +11,11 @@ host    all             all             ::1/128                 scram-sha-256
 hostssl all             all             172.16.0.0/12           scram-sha-256
 INNER_EOF
 
+if [ -z "$REPLICATION_USER" ]; then
+    echo "ERROR: REPLICATION_USER is empty; cannot generate replication rules in pg_hba.conf"
+    exit 1
+fi
+
 if [ -n "$ALLOWED_HOSTS" ]; then
     for HOST in $ALLOWED_HOSTS; do
         echo "hostssl all             all             ${HOST}    scram-sha-256" >> "$PGDATA/pg_hba.conf"
