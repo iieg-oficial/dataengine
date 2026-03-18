@@ -15,14 +15,9 @@ if [ -n "$ALLOWED_HOSTS" ]; then
     for HOST in $ALLOWED_HOSTS; do
         echo "hostssl all             all             ${HOST}    scram-sha-256" >> "$PGDATA/pg_hba.conf"
     done
-    echo "" >> "$PGDATA/pg_hba.conf" 
-    for HOST in $ALLOWED_HOSTS; do
-        echo "hostssl replication     ${REPLICATION_USER}    ${HOST}    scram-sha-256" >> "$PGDATA/pg_hba.conf"
-    done
 fi
 
 cat >> "$PGDATA/pg_hba.conf" <<INNER_EOF
-hostssl replication     ${REPLICATION_USER}    172.16.0.0/12           scram-sha-256
 
 host    all             all             0.0.0.0/0               reject
 host    all             all             ::/0                    reject
