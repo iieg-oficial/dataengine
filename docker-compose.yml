@@ -20,6 +20,7 @@ services:
       - ./postgres/primary/init:/docker-entrypoint-initdb.d
       - ./postgres/primary/config/postgresql.conf:/etc/postgresql/postgresql.conf:ro
       - ./restore:/restore
+      - ./scripts:/scripts:ro
     entrypoint: /entrypoint-ssl.sh
     command: postgres -c config_file=/etc/postgresql/postgresql.conf
     healthcheck:

@@ -116,7 +116,7 @@ card:
 refresh-periodicity:
 	@echo "Refrescando periodicidad..."
 	@docker compose exec -T postgres-primary psql -U $(POSTGRES_USER) -d $(POSTGRES_DB) \
-		-c "SELECT public.refresh_layer_periodicity();" -q
+		-f /scripts/refresh_periodicity.sql -q
 	@echo "OK"
 cron-install:
 	@mkdir -p $(PROJECT_DIR)/logs
