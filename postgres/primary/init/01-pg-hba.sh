@@ -7,8 +7,7 @@ cat > "$PGDATA/pg_hba.conf" <<INNER_EOF
 local   all             all                                     scram-sha-256
 host    all             all             127.0.0.1/32            scram-sha-256
 host    all             all             ::1/128                 scram-sha-256
-
-hostssl all             all             172.16.0.0/12           scram-sha-256
+host    all             all             172.16.0.0/12           scram-sha-256
 INNER_EOF
 
 if [ -n "$ALLOWED_HOSTS" ]; then
