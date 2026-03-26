@@ -1,6 +1,14 @@
 #!/bin/bash
 set -euo pipefail
 
+DEBUG="${DEBUG:-0}"
+
+for arg in "$@"; do
+    if [ "$arg" = "--debug" ]; then
+        DEBUG=1
+    fi
+done
+
 LOGFILE=$(mktemp)
 DOCKER_PID=""
 cleanup() { rm -f "$LOGFILE"; [ -n "$DOCKER_PID" ] && kill "$DOCKER_PID" 2>/dev/null || true; }
@@ -14,7 +22,7 @@ LAST_LINE=0
 
 printf "\n  Generando backup...\n\n"
 
-docker compose exec -T pg-backup /scripts/backup.sh > "$LOGFILE" 2>&1 &
+docker compose exec -T -e DEBUG=$DEBUG pg-backup /scripts/backup.sh > "$LOGFILE" 2>&1 &
 DOCKER_PID=$!
 
 flush_log() {

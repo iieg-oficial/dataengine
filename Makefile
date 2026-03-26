@@ -92,10 +92,10 @@ shell:
 	docker compose exec postgres-primary psql -U $(POSTGRES_USER) -d $(POSTGRES_DB)
 
 backup:
-	@bash backup/do-backup.sh
+	@DEBUG=$(DEBUG) bash backup/do-backup.sh
 
 restore:
-	@bash restore/do-restore.sh $(FILE)
+	@DEBUG=$(DEBUG) bash restore/do-restore.sh $(FILE)
 
 restore-local:
 	@PGHOST=$(MAPALAB_CARD_DB_HOST) PGPORT=$(MAPALAB_CARD_DB_PORT) \

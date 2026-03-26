@@ -1,6 +1,11 @@
 #!/bin/bash
 set -euo pipefail
 
+VERBOSE_FLAG=""
+if [ "${DEBUG:-0}" -eq 1 ]; then
+    VERBOSE_FLAG="-v"
+fi
+
 FILE="$1"
 FILEPATH="/restore/$FILE"
 
@@ -24,7 +29,7 @@ HEADER=$(od -A n -N 5 -t c "$FILEPATH" 2>/dev/null | tr -d ' \n')
 if echo "$HEADER" | grep -q "PGDMP"; then
     echo "Detectado: custom format"
     set +e
-    pg_restore -U "$POSTGRES_USER" -d "$POSTGRES_DB" --clean --if-exists --no-owner --no-acl "$FILEPATH"
+    pg_restore $VERBOSE_FLAG -U "$POSTGRES_USER" -d "$POSTGRES_DB" --clean --if-exists --no-owner --no-acl "$FILEPATH"
     RC=$?
     set -e
     if [ "$RC" -gt 1 ]; then

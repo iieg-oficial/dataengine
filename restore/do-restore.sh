@@ -2,7 +2,16 @@
 set -euo pipefail
 
 RESTORE_DIR="./restore"
-FILE="${1:-}"
+DEBUG="${DEBUG:-0}"
+FILE=""
+
+for arg in "$@"; do
+    if [ "$arg" = "--debug" ]; then
+        DEBUG=1
+    elif [ -z "$FILE" ]; then
+        FILE="$arg"
+    fi
+done
 
 format_size() {
     awk -v b="$1" 'BEGIN {
@@ -71,7 +80,7 @@ LAST_LINE=0
 
 printf "\n  Restaurando: %s\n\n" "$FILE"
 
-docker compose exec -T postgres-primary /restore/restore.sh "$FILE" > "$LOGFILE" 2>&1 &
+docker compose exec -T -e DEBUG=$DEBUG postgres-primary /restore/restore.sh "$FILE" > "$LOGFILE" 2>&1 &
 DOCKER_PID=$!
 
 flush_log() {
