@@ -6,7 +6,7 @@ CRON_JOB = $(cron_minute) $(cron_hour) * * * cd $(PROJECT_DIR) && make card >> $
 
 .PHONY: help up down restart ps logs logs-primary logs-backup \
         shell backup restore clean build certs \
-        cron-install cron-remove card \
+        cron-install cron-remove card refresh-periodicity \
         fw-status fw-setup fw-reset
 
 help:
@@ -29,7 +29,8 @@ help:
 	@echo "  certs           Generar certificados SSL (solo primera vez)"
 	@echo "  clean           Eliminar volumenes (DESTRUCTIVO)"
 	@echo ""
-	@echo "  card            Ingesta tarjetas desde csv track card capa"
+	@echo "  card                Ingesta tarjetas desde csv track card capa"
+	@echo "  refresh-periodicity Refrescar tabla de periodicidad (SQL)"
 	@echo ""
 	@echo "  cron-install    Instalar cron job diario para make card"
 	@echo "  cron-remove     Remover cron job de ingesta"
@@ -110,6 +111,12 @@ clean:
 
 card:
 	docker compose exec mapalab-card python run_bootstrap.py
+	@$(MAKE) refresh-periodicity
+
+refresh-periodicity:
+	@echo "Refrescando periodicidad..."
+	@docker exec $$(docker ps -qf "name=mapalab.*backend" | head -1) python -c \
+		"from app.services import PeriodicityService; PeriodicityService.refresh(); print('OK')"
 cron-install:
 	@mkdir -p $(PROJECT_DIR)/logs
 	@( crontab -l 2>/dev/null | grep -v 'make card' | grep -v 'SHELL=/bin/bash' ; echo "SHELL=/bin/bash" ; echo "$(CRON_JOB)" ) | crontab -
