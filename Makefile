@@ -115,8 +115,9 @@ card:
 
 refresh-periodicity:
 	@echo "Refrescando periodicidad..."
-	@docker exec $$(docker ps -qf "name=mapalab.*backend" | head -1) python -c \
-		"from app.services import PeriodicityService; PeriodicityService.refresh(); print('OK')"
+	@docker compose exec -T postgres-primary psql -U $(POSTGRES_USER) -d $(POSTGRES_DB) \
+		-c "SELECT public.refresh_layer_periodicity();" -q
+	@echo "OK"
 cron-install:
 	@mkdir -p $(PROJECT_DIR)/logs
 	@( crontab -l 2>/dev/null | grep -v 'make card' | grep -v 'SHELL=/bin/bash' ; echo "SHELL=/bin/bash" ; echo "$(CRON_JOB)" ) | crontab -
