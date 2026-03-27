@@ -6,7 +6,7 @@ CRON_JOB = $(cron_minute) $(cron_hour) * * * cd $(PROJECT_DIR) && make card >> $
 
 .PHONY: help up down restart ps logs logs-primary logs-backup \
         shell backup restore clean build certs \
-        cron-install cron-remove card refresh-periodicity \
+        cron-install cron-remove card refresh-periodicity check-periodicity \
         fw-status fw-setup fw-reset
 
 help:
@@ -31,6 +31,7 @@ help:
 	@echo ""
 	@echo "  card                Ingesta tarjetas desde csv track card capa"
 	@echo "  refresh-periodicity Refrescar tabla de periodicidad (SQL)"
+	@echo "  check-periodicity   Verificar si periodicidad esta al dia"
 	@echo ""
 	@echo "  cron-install    Instalar cron job diario para make card"
 	@echo "  cron-remove     Remover cron job de ingesta"
@@ -118,6 +119,11 @@ refresh-periodicity:
 	@docker compose exec -T postgres-primary psql -U $(POSTGRES_USER) -d $(POSTGRES_DB) \
 		-f /scripts/refresh_periodicity.sql -q
 	@echo "OK"
+
+check-periodicity:
+	@echo "Verificando periodicidad..."
+	@docker compose exec -T postgres-primary psql -U $(POSTGRES_USER) -d $(POSTGRES_DB) \
+		-f /scripts/check_periodicity.sql -q
 cron-install:
 	@mkdir -p $(PROJECT_DIR)/logs
 	@( crontab -l 2>/dev/null | grep -v 'make card' | grep -v 'SHELL=/bin/bash' ; echo "SHELL=/bin/bash" ; echo "$(CRON_JOB)" ) | crontab -
