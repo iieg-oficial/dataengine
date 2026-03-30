@@ -22,7 +22,7 @@ chmod 600 ~/.pgpass
 pg_dump $VERBOSE_FLAG \
     "host=postgres-primary port=5432 user=$POSTGRES_USER dbname=$POSTGRES_DB sslmode=verify-ca sslrootcert=/certs/ca.crt" \
     --format=custom \
-    --compress=9 \
+    --compress=5 \
     -f "$FILEPATH"
 
 rm -f ~/.pgpass
