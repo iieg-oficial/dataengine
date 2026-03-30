@@ -1,5 +1,4 @@
 #!/bin/bash
-set -euo pipefail
 
 DEBUG="${DEBUG:-0}"
 
@@ -11,7 +10,13 @@ done
 
 LOGFILE=$(mktemp)
 DOCKER_PID=""
-cleanup() { rm -f "$LOGFILE"; [ -n "$DOCKER_PID" ] && kill "$DOCKER_PID" 2>/dev/null || true; }
+FINISHED=0
+cleanup() {
+    rm -f "$LOGFILE"
+    if [ "$FINISHED" -eq 0 ] && [ -n "$DOCKER_PID" ]; then
+        kill "$DOCKER_PID" 2>/dev/null || true
+    fi
+}
 trap cleanup EXIT
 
 START=$(date +%s)
@@ -48,6 +53,7 @@ done
 
 STATUS=0
 wait "$DOCKER_PID" || STATUS=$?
+FINISHED=1
 ELAPSED=$(( $(date +%s) - START ))
 printf "\r\033[K"
 flush_log

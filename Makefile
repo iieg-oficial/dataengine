@@ -2,7 +2,9 @@
 export
 
 PROJECT_DIR := $(shell pwd)
-CRON_JOB = $(cron_minute) $(cron_hour) * * * cd $(PROJECT_DIR) && make card >> $(PROJECT_DIR)/logs/cron_card.log 2>&1
+CRON_HOUR   = $(word 1,$(subst :, ,$(CRON_SCHEDULE)))
+CRON_MINUTE = $(word 2,$(subst :, ,$(CRON_SCHEDULE)))
+CRON_JOB    = $(CRON_MINUTE) $(CRON_HOUR) * * * cd $(PROJECT_DIR) && make card >> $(PROJECT_DIR)/logs/cron_card.log 2>&1
 
 .PHONY: help up down restart ps logs logs-primary logs-backup \
         shell backup restore clean build certs \
@@ -94,7 +96,11 @@ shell:
 	docker compose exec postgres-primary psql -U $(POSTGRES_USER) -d $(POSTGRES_DB)
 
 backup:
+ifeq ($(ENV),production)
 	@DEBUG=$(DEBUG) bash backup/do-backup.sh
+else
+	@echo "⚠️  Backup deshabilitado en ENV=$(ENV). Solo disponible en production."
+endif
 
 restore:
 	@DEBUG=$(DEBUG) bash restore/do-restore.sh $(FILE)
@@ -125,9 +131,13 @@ check-periodicity:
 	@docker compose exec -T postgres-primary psql -U $(POSTGRES_USER) -d $(POSTGRES_DB) \
 		-f /scripts/check_periodicity.sql -q
 cron-install:
+ifeq ($(ENV),production)
 	@mkdir -p $(PROJECT_DIR)/logs
 	@( crontab -l 2>/dev/null | grep -v 'make card' | grep -v 'SHELL=/bin/bash' ; echo "SHELL=/bin/bash" ; echo "$(CRON_JOB)" ) | crontab -
-	@echo "⏰ Cron job instalado: ingesta diaria a las $(cron_hour):$(cron_minute) con conda env etl (logs en logs/)"
+	@echo "⏰ Cron job instalado: ingesta diaria a las $(CRON_SCHEDULE) con conda env etl (logs en logs/)"
+else
+	@echo "⏰ Cron job omitido en ENV=$(ENV). Solo se instala en production."
+endif
 
 cron-remove:
 	@( crontab -l 2>/dev/null | grep -v 'make card' | grep -v 'SHELL=/bin/bash' ) | crontab - || true
