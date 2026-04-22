@@ -143,6 +143,11 @@ bootstrap-v14:
 bootstrap-v14-dry:
 	@./scripts/bootstrap-v14.sh --dry-run $(if $(LAYERS_JSON),--layers-json $(LAYERS_JSON),--skip-seed)
 
+migrate-mapalab-card:
+	@echo "Migrando public.mapalab_card -> mapalab.layer_metadata + layer_stats (1-shot, idempotente)..."
+	@docker compose exec -T jobs python bootstrap/run_migrate_mapalab_card.py --apply
+	@echo "OK. Validar con: docker compose exec postgres-primary psql -U $(POSTGRES_USER) -d $(POSTGRES_DB) -c 'SELECT COUNT(*) FROM mapalab.layer_metadata;'"
+
 logs-jobs:
 	@docker compose exec jobs tail -n 100 -f /var/log/cron.log
 
