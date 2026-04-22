@@ -109,19 +109,15 @@ restore:
 	@DEBUG=$(DEBUG) bash restore/do-restore.sh $(FILE)
 
 restore-local:
-	@PGHOST=$(MAPALAB_CARD_DB_HOST) PGPORT=$(MAPALAB_CARD_DB_PORT) \
-	 PGUSER=$(MAPALAB_CARD_DB_USER) PGPASSWORD=$(MAPALAB_CARD_DB_PASSWORD) \
-	 PGDATABASE=$(MAPALAB_CARD_DB_NAME) \
+	@PGHOST=$(DATAENGINE_DB_HOST) PGPORT=$(DATAENGINE_DB_PORT) \
+	 PGUSER=$(DATAENGINE_DB_USER) PGPASSWORD=$(DATAENGINE_DB_PASSWORD) \
+	 PGDATABASE=$(DATAENGINE_DB_NAME) \
 	 bash restore/do-restore-local.sh $(FILE)
 
 clean:
 	@echo "ATENCION: Esto eliminara todos los datos de PostgreSQL y backups"
 	@read -p "Escribir 'si' para confirmar: " confirm && [ "$$confirm" = "si" ] || (echo "Cancelado" && exit 1)
 	docker compose down -v
-
-card:
-	docker compose exec jobs python run_bootstrap.py
-	@$(MAKE) refresh-periodicity
 
 refresh-layer-tree:
 	@echo "Refrescando arbol de capas..."

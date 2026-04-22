@@ -1,16 +1,6 @@
-# mapalab_card - dependencies
-
 # Database
 SQLAlchemy==1.4.54
-alembic==1.18.4
 psycopg2-binary==2.9.11
-
-# Data processing
-pandas==3.0.0
-
-# Google Sheets integration
-gspread==6.2.1
-google-auth==2.48.0
 
 # Configuration
 python-dotenv==1.2.1

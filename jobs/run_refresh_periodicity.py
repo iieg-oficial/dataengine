@@ -30,12 +30,12 @@ def main() -> int:
 
 
 def _build_url_from_parts() -> str | None:
-    user = os.getenv('MAPALAB_CARD_DB_USER')
-    pwd = os.getenv('MAPALAB_CARD_DB_PASSWORD')
-    host = os.getenv('MAPALAB_CARD_DB_HOST')
-    port = os.getenv('MAPALAB_CARD_DB_PORT', '5432')
-    db = os.getenv('MAPALAB_CARD_DB_NAME')
-    sslmode = os.getenv('MAPALAB_CARD_DB_SSLMODE', 'require')
+    user = os.getenv('DATAENGINE_DB_USER')
+    pwd = os.getenv('DATAENGINE_DB_PASSWORD')
+    host = os.getenv('DATAENGINE_DB_HOST')
+    port = os.getenv('DATAENGINE_DB_PORT', '5432')
+    db = os.getenv('DATAENGINE_DB_NAME')
+    sslmode = os.getenv('DATAENGINE_DB_SSLMODE', 'require')
     if not (user and pwd and host and db):
         return None
     return f'postgresql://{user}:{pwd}@{host}:{port}/{db}?sslmode={sslmode}'

@@ -13,7 +13,7 @@ _LOG_DIR = os.path.normpath(_LOG_DIR)
 os.makedirs(_LOG_DIR, exist_ok=True)
 
 _file_handler = logging.FileHandler(
-    os.path.join(_LOG_DIR, "mapalab_card.log"), encoding="utf-8"
+    os.path.join(_LOG_DIR, "jobs.log"), encoding="utf-8"
 )
 _file_handler.setLevel(logging.INFO)
 _file_handler.setFormatter(logging.Formatter(FILE_FORMAT, datefmt="%Y-%m-%d %H:%M:%S"))
