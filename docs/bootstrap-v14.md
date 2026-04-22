@@ -78,3 +78,55 @@ DATAENGINE_DATABASE_URL=postgresql://mariachi_layers:<password>@<host>:5432/<db>
 ```
 
 **Guardarlo en `.env` de mariachi** — solo se muestra una vez. No se persiste en logs.
+
+## Despliegue en produccion (primera vez)
+
+**Contexto:** en produccion `public.mapalab_card` existe y esta poblada por el ETL del Sheet (historico), pero `mapalab.layer_metadata` y `mapalab.layer_stats` estan vacias. El backend nuevo (mapalab >= v1.7.0) lee exclusivamente de `mapalab.*`. Si haces `pull + up` sin migrar primero, las capas cargan sin metadata ni numeralia.
+
+Secuencia correcta:
+
+1. **Antes del pull del backend** — con el codigo anterior aun corriendo:
+   ```bash
+   cd /IIEG/mapalab-dataengine
+   git pull
+   make up
+   make bootstrap-v14 LAYERS_JSON=/ruta/a/layers_export.json
+   ```
+   Esto crea schema + tablas + seed de layers + migra `mapalab_card` → `layer_metadata`/`layer_stats` en una sola corrida idempotente.
+
+2. **Validacion:**
+   ```bash
+   docker compose exec postgres-primary psql -U $POSTGRES_USER -d $POSTGRES_DB -c "
+     SELECT
+       (SELECT COUNT(*) FROM mapalab.layers)           AS layers,
+       (SELECT COUNT(*) FROM mapalab.layer_metadata)   AS metadata,
+       (SELECT COUNT(*) FROM mapalab.layer_stats)      AS stats;"
+   ```
+   Esperar ~250 layers, ~107 metadata, ~102 stats.
+
+3. **Pull del backend mapalab** (una vez validado el paso 2):
+   ```bash
+   cd /IIEG/mapalab
+   git pull
+   make up
+   ```
+
+### Re-migracion puntual
+
+Si el Sheet se actualizo y quieres re-sincronizar filas legacy despues del deploy inicial:
+
+```bash
+make migrate-mapalab-card
+```
+
+**OJO:** esto **sobreescribe** los campos en `mapalab.layer_metadata` con los valores del Sheet (via `ON CONFLICT DO UPDATE`). Si algun admin edito metadata desde mariachi, pierdes esos cambios. La fuente de verdad desde v1.4.2 es mariachi; el re-sync del Sheet solo tiene sentido como herramienta de recuperacion.
+
+### Deprecacion
+
+`public.mapalab_card` y su ETL desde Google Sheet quedan como historico. Una vez validado el deploy inicial y confirmado que los admins editan desde mariachi, la tabla puede dropearse con:
+
+```sql
+DROP TABLE IF EXISTS public.mapalab_card;
+```
+
+Tras eso, el script `run_migrate_mapalab_card.py` deja de tener fuente y puede eliminarse del repo.
