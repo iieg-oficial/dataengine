@@ -33,7 +33,10 @@ help:
 	@echo ""
 	@echo "  card                Ingesta tarjetas desde csv track card capa"
 	@echo "  refresh-periodicity Refrescar tabla de periodicidad (SQL)"
+	@echo "  refresh-layer-tree  Refrescar cache del arbol de capas MapaLab"
+	@echo "  refresh-all         Ejecutar refresh-periodicity + refresh-layer-tree"
 	@echo "  check-periodicity   Verificar si periodicidad esta al dia"
+	@echo "  logs-jobs           Ver logs del cron en dataengine-jobs"
 	@echo ""
 	@echo "  cron-install    Instalar cron job diario para make card"
 	@echo "  cron-remove     Remover cron job de ingesta"
@@ -117,13 +120,39 @@ clean:
 	docker compose down -v
 
 card:
-	docker compose exec mapalab-card python run_bootstrap.py
+	docker compose exec jobs python run_bootstrap.py
 	@$(MAKE) refresh-periodicity
+
+refresh-layer-tree:
+	@echo "Refrescando arbol de capas..."
+	@docker compose exec -T jobs python run_refresh_layer_tree.py
+	@echo "OK"
+
+refresh-layer-stats:
+	@echo "Refrescando numeralia dinamica..."
+	@docker compose exec -T jobs python run_refresh_layer_stats.py
+	@echo "OK"
+
+refresh-all: refresh-periodicity refresh-layer-tree refresh-layer-stats
+	@echo "Todo refresh completado"
+
+bootstrap-v14:
+	@if [ -z "$(LAYERS_JSON)" ]; then \
+		echo "Uso: make bootstrap-v14 LAYERS_JSON=/path/to/layers_export.json"; \
+		echo "     Genera el JSON con: cd /IIEG/mapalab/frontend && node scripts/export_layers_to_json.mjs"; \
+		exit 1; \
+	fi
+	@./scripts/bootstrap-v14.sh --layers-json "$(LAYERS_JSON)" $(BOOTSTRAP_FLAGS)
+
+bootstrap-v14-dry:
+	@./scripts/bootstrap-v14.sh --dry-run $(if $(LAYERS_JSON),--layers-json $(LAYERS_JSON),--skip-seed)
+
+logs-jobs:
+	@docker compose exec jobs tail -n 100 -f /var/log/cron.log
 
 refresh-periodicity:
 	@echo "Refrescando periodicidad..."
-	@docker compose exec -T postgres-primary psql -U $(POSTGRES_USER) -d $(POSTGRES_DB) \
-		-f /scripts/refresh_periodicity.sql -q
+	@docker compose exec -T jobs python run_refresh_periodicity.py
 	@echo "OK"
 
 check-periodicity:

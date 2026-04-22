@@ -77,9 +77,9 @@ services:
     networks:
       - db-network
 
-  mapalab-card:
-    build: ./mapalab_card
-    container_name: dataengine-mapalab-card
+  jobs:
+    build: ./jobs
+    container_name: dataengine-jobs
     restart: unless-stopped
     environment:
       MAPALAB_CARD_DB_USER: ${POSTGRES_USER}
