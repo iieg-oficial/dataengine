@@ -7,12 +7,13 @@ Snapshot del estado del proyecto al 2026-04-22 (version actual: `1.5.0`). Este a
 ### Documentacion
 - [ ] **Actualizar la version visible en `README.md`**: el README raiz no muestra la version actual del stack. Sugerencia: agregar un badge o linea `**Version:** 1.5.0` cerca del titulo, apuntando a `docs/CHANGELOG.md`. Hoy no hay forma de saber la version del proyecto sin abrir el CHANGELOG
 - [ ] Sincronizar `jobs/README.md` con `docs/jobs.md` — hoy los dos documentan el container pero con solapamiento. Decidir si se conserva `jobs/README.md` (util si se publica la imagen sola) o se deja `docs/jobs.md` como fuente unica y `jobs/README.md` como stub que referencia
-- [ ] Crear/migrar `.env.example`: actualmente lista variables pero falta `PGBOUNCER_PORT` documentado claramente, `ENV` con sus valores validos explicitos, y las variables opcionales `MAPALAB_STATS_DB_USER` / `MAPALAB_STATS_DB_PASSWORD` / `FORCE_LEGACY_ETL` / `DATAENGINE_URL`
+- [ ] Crear/migrar `.env.example`: actualmente lista variables pero falta `PGBOUNCER_PORT` documentado claramente, `ENV` con sus valores validos explicitos, y las variables opcionales `MAPALAB_STATS_DB_USER` / `MAPALAB_STATS_DB_PASSWORD` / `DATAENGINE_URL`
 
 ### Limpieza de codigo muerto
 - [ ] **`postgres/replica/start-replica.sh`** — archivo huerfano desde `1.2.0` (remove postgres-replica). Esta trackeado en git pero no referenciado en `docker-compose.yml` ni en el Makefile. Candidato a `git rm`
 - [ ] **`postgres/primary/init/02-init-replication.sh`** — mismo caso, huerfano del streaming replication
-- [ ] **`jobs/run_bootstrap.py`** (legacy ETL Google Sheet): deprecado en `1.5.0`. Si el Sheet deja de ser fuente de verdad definitivamente, eliminar tambien `jobs/core/`, `jobs/alembic/mapalab_card/`, las envs `MAPALAB_CARD_GOOGLE_*` y el target `make card`
+- [x] **`jobs/run_bootstrap.py` y toda la cadena del Google Sheet ETL** (legacy deprecado en `1.5.0`): eliminados en `1.6.0` (`core/mapalab_card/`, `core/schemas/mapalab_card.py`, `alembic/mapalab_card/`, deps `pandas/gspread/google-auth`, credenciales Google). Se conservo `jobs/bootstrap/run_migrate_mapalab_card.py` como herramienta de recuperacion idempotente
+- [ ] **Drop de `public.mapalab_card`**: la tabla sigue viva en produccion como respaldo. Una vez validado que mariachi es la unica fuente de verdad, ejecutar `DROP TABLE IF EXISTS public.mapalab_card;` y eliminar `jobs/bootstrap/run_migrate_mapalab_card.py`
 
 ### Bugs / inconsistencias detectadas durante la revision
 - [ ] **Schedule del cron de backup**: el README antiguo decia "diario a las 08:00 AM" pero `backup/crontab` tiene `0 2 * * 0` (domingos 02:00 UTC = semanal). El CHANGELOG 1.1.1 refleja el cambio a semanal. El README reescrito debe verificarse para no reintroducir la falsedad
@@ -36,17 +37,17 @@ Snapshot del estado del proyecto al 2026-04-22 (version actual: `1.5.0`). Este a
 | Restore con auto-deteccion y spinner | `restore/do-restore.sh` (host wrapper), `restore/restore.sh` (en container) |
 | Control de volumenes via envs | `.env.example` → `POSTGRES_PRIMARY_DATA`, `BACKUP_DATA`, `PGDATA` |
 
-### mapalab_card ETL legacy (1.1.0, deprecated en 1.5.0)
+### mapalab_card ETL legacy — eliminado (v1.7.0)
+
+El ETL del Google Sheet (`run_bootstrap.py`, `core/mapalab_card/*`, `core/schemas/mapalab_card.py`, `alembic/mapalab_card/*`, deps `pandas`/`gspread`/`google-auth`, credenciales `iieg2025-cloud-*.json`) fue eliminado en v1.7.0. La fuente de verdad es `mapalab.layer_metadata` + `mapalab.layer_stats`, editables desde mariachi.
+
+**Preservado** como herramienta de recuperación idempotente:
 
 | Feature | Archivos |
 |---|---|
-| Framework ETL base | `jobs/core/action.py`, `jobs/core/etl.py`, `jobs/core/source.py`, `jobs/core/config.py` |
-| Acciones especificas | `jobs/core/mapalab_card/actions/{actinsert,actbackup,actmapdata}.py` |
-| Source tabular | `jobs/core/mapalab_card/sources/srcdatatabular.py` |
-| Schema/config | `jobs/core/schemas/mapalab_card.py`, `jobs/core/mapalab_card/config.py` |
-| Migrations | `jobs/alembic/mapalab_card/versions/*.py` |
-| Entry point legacy (deprecated) | `jobs/run_bootstrap.py` |
-| Cron host para `make card` | `Makefile:7` (`CRON_JOB`), `Makefile:162-173` (`cron-install`/`cron-remove`) |
+| Migracion 1-shot `mapalab_card` → `layer_metadata`/`layer_stats` | `jobs/bootstrap/run_migrate_mapalab_card.py` (self-contained, solo SQLAlchemy + psycopg2) |
+
+Invocable desde `scripts/bootstrap-v14.sh` (paso 5) o directamente con `docker compose exec jobs python bootstrap/run_migrate_mapalab_card.py --apply`. La tabla `public.mapalab_card` puede dropearse cuando se confirme que todo esta migrado.
 
 ### Refresh jobs diarios (1.5.0)
 
@@ -103,12 +104,10 @@ Snapshot del estado del proyecto al 2026-04-22 (version actual: `1.5.0`). Este a
 | `PG_BIND_ADDRESS`, `PG_PRIMARY_PORT`, `PGBOUNCER_PORT` | `docker-compose.yml` | binding externo |
 | `POSTGRES_PRIMARY_DATA`, `BACKUP_DATA`, `PGDATA` | `docker-compose.yml` | volumenes |
 | `AO_ENDPOINT/BUCKET/ACCESS_KEY/SECRET_KEY` | `backup/scripts/upload-ao.sh` | Acervo de Objetos |
-| `MAPALAB_CARD_DB_*` | `docker-compose.yml` → `jobs`, `jobs/run_refresh_*.py`, `jobs/bootstrap/*` | credenciales del container jobs (mantienen el prefijo legacy) |
+| `DATAENGINE_DB_*` | `docker-compose.yml` → `jobs`, `jobs/run_refresh_*.py`, `jobs/bootstrap/*` | credenciales del container jobs (renombradas desde `MAPALAB_CARD_DB_*` en v1.7.0) |
 | `MAPALAB_STATS_DB_USER/PASSWORD` | `jobs/run_refresh_layer_stats.py` | override opcional para stats refresh |
-| `MAPALAB_CARD_GOOGLE_CREDENTIALS_PATH/SHEET_URL` | `docker-compose.yml` → `jobs`, `jobs/run_bootstrap.py` | solo legacy ETL |
-| `FORCE_LEGACY_ETL` | `jobs/run_bootstrap.py` | opt-in para correr el ETL deprecated |
-| `DATAENGINE_URL` | `jobs/run_refresh_*.py`, `jobs/bootstrap/run_seed_layers.py`, `jobs/bootstrap/run_migrate_mapalab_card.py` | URL completa alternativa a las partes `MAPALAB_CARD_DB_*` |
-| `CRON_SCHEDULE` | `Makefile:5-7` | hora del cron host para `make card` |
+| `DATAENGINE_URL` | `jobs/run_refresh_*.py`, `jobs/bootstrap/run_seed_layers.py`, `jobs/bootstrap/run_migrate_mapalab_card.py` | URL completa alternativa a `DATAENGINE_DB_*` |
+| `CRON_SCHEDULE` | `Makefile` | hora del cron host (legacy; el cron efectivo corre dentro del container `jobs`) |
 | `DEBUG` | `backup/do-backup.sh`, `restore/do-restore.sh`, `backup/scripts/backup.sh`, `restore/restore.sh` | verbose pg_dump/pg_restore |
 
 ## Comandos make (agrupados)

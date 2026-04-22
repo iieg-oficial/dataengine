@@ -22,24 +22,30 @@ de `mapalab-dataengine` es independiente del de MapaLab.
   - `jobs/bootstrap/run_migrate_mapalab_card.py` migra filas legacy deduplicando por `layer_key` y arma `fuentes`, `metodologia`, `metadato`, numeralia como JSONB
   - Flags: `--dry-run`, `--skip-role`, `--skip-schema`, `--skip-seed`, `--skip-migrate`, `--password <val>`
   - `make bootstrap-v14-dry` para validar sin persistir
+- **`make migrate-mapalab-card`** — target 1-shot (idempotente) que re-corre `run_migrate_mapalab_card.py --apply` como herramienta de recuperacion si el Sheet se actualizo. **OJO**: usa `ON CONFLICT DO UPDATE` y sobreescribe ediciones hechas desde mariachi
 - **Template catalog** en `run_refresh_layer_stats.py`: 8 operaciones validadas (`count`, `count_distinct`, `count_where`, `sum`, `avg`, `min`, `max`, `latest`) reemplazan SQL libre. Identificadores validados con regex (`[A-Za-z0-9_]{1,100}`), valores bindeados como `:param`
-- **Targets make**: `refresh-layer-tree`, `refresh-layer-stats`, `refresh-all`, `logs-jobs`, `bootstrap-v14`, `bootstrap-v14-dry`, `restore-local`
-- **Crontab** del container jobs (`/etc/cron.d/jobs`) y entrypoint que exporta `MAPALAB_CARD_*` + `DATAENGINE_*` a `/etc/environment` para que cron vea las vars
-- Documentacion reorganizada: `docs/architecture.md` (componentes + diagrama Mermaid + schema), `docs/jobs.md` (cron container + template catalog + credencial GCP), `docs/bootstrap-v14.md` (pasos + flags + idempotencia), `docs/CHANGELOG.md` (este archivo)
+- **Targets make**: `refresh-layer-tree`, `refresh-layer-stats`, `refresh-all`, `logs-jobs`, `bootstrap-v14`, `bootstrap-v14-dry`, `migrate-mapalab-card`, `restore-local`
+- **Crontab** del container jobs (`/etc/cron.d/jobs`) y entrypoint que exporta `DATAENGINE_*` a `/etc/environment` para que cron vea las vars
+- Documentacion reorganizada: `docs/architecture.md` (componentes + diagrama Mermaid + schema), `docs/jobs.md` (cron container + template catalog + envs), `docs/bootstrap-v14.md` (pasos + flags + idempotencia + secuencia de deploy en produccion), `docs/CHANGELOG.md` (este archivo), `docs/context.md` (feature map + TODOs)
 - `.gitignore`: patron `jobs/iieg2025-cloud-*.json` (credencial de service account GCP no versionada) y `jobs/bootstrap/_layers_export.json` (scratch del bootstrap)
+- `README.md` muestra la version actual (`1.5.0`) en la cabecera
 
 ### Cambiado
 - `mapalab_card/` → `jobs/` (git mv preservando historia); servicio docker `mapalab-card` → `jobs` (container `dataengine-mapalab-card` → `dataengine-jobs`). Scripts externos que invoquen el servicio o lean sus logs deben actualizarse
+- **Envs del container `jobs` renombradas** `MAPALAB_CARD_DB_{USER,PASSWORD,HOST,PORT,NAME,SSLMODE}` → `DATAENGINE_DB_*`. Aplicado en `docker-compose.yml`, `jobs/run_refresh_*.py`, `jobs/bootstrap/*.py` y `jobs/entrypoint.sh` (que ahora filtra solo `DATAENGINE_*` hacia `/etc/environment`). `make restore-local` tambien usa el prefijo nuevo
 - `jobs/Dockerfile` instala `cron`, copia `crontab` a `/etc/cron.d/jobs` (mode 0644), crea `/var/log/cron.log`
-- `jobs/entrypoint.sh` ejecuta alembic legacy best-effort, exporta envs a `/etc/environment`, hace `tail -F` del log y pasa control al `CMD` (`cron -f`)
+- `jobs/core/utils/logger.py` escribe a `jobs.log` (antes `mapalab_card.log`)
 - README raiz reescrito: eliminadas referencias al servicio `mapalab-card` ya renombrado. Documentacion profunda movida a `docs/`
-- `make card` queda como shim del legacy + `refresh-periodicity`
 
-### Deprecado
-- `run_bootstrap.py` (ETL del Google Sheet → `public.mapalab_card`): noop por defecto. Requiere `FORCE_LEGACY_ETL=1` para correr. La fuente de verdad es `mapalab.layer_metadata` + `mapalab.layer_stats`, editable desde mariachi (`/administrador/mapalab/layers`)
+### Eliminado
+- **ETL legacy del Google Sheet**: `jobs/run_bootstrap.py`, `jobs/core/mapalab_card/` (framework de actions + sources), `jobs/alembic/mapalab_card/` (migraciones), `jobs/core/schemas/mapalab_card.py`, `jobs/data/mapalab_card/`. La fuente de verdad es `mapalab.layer_metadata` + `mapalab.layer_stats`, editable desde mariachi (`/administrador/mapalab/layers`)
+- **Target `make card`** y su flag `FORCE_LEGACY_ETL`: ya no hay ETL que correr
+- **Envs legacy del compose**: `MAPALAB_CARD_GOOGLE_CREDENTIALS_PATH`, `MAPALAB_CARD_GOOGLE_SHEET_URL`, `MAPALAB_CARD_DATA_WORKING_DIR`, `MAPALAB_CARD_DATA_ERROR_DIR`
+- **Mount** `${BACKUP_DATA}/mapalab_card` del servicio `jobs` (ya no hay ETL que lo llene)
+- `jobs/requirements.txt`: quita `alembic`, `pandas`, `gspread`, `google-auth`
+- `jobs/entrypoint.sh`: quita `alembic upgrade head` del legacy
 
 ### Seguridad
-- Credencial de service account GCP fuera del repo (ver `.gitignore` y `docs/jobs.md`)
 - Template catalog reemplaza SQL libre en `stats_config` (ver Agregado)
 
 ## [1.4.0] - 2026-04-14

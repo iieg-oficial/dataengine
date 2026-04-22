@@ -20,26 +20,20 @@ Desde la raiz del repo (`/IIEG/mapalab-dataengine`):
 make refresh-periodicity
 make refresh-layer-tree
 make refresh-layer-stats
-make refresh-all          # los tres en orden
-make logs-jobs            # tail del log del cron
+make refresh-all           # los tres en orden
+make logs-jobs             # tail del log del cron
+make migrate-mapalab-card  # re-sync 1-shot public.mapalab_card -> mapalab.layer_metadata+stats
 ```
 
 Desde `/IIEG/mapalab/`: `make refresh-layer-tree` delega a este container si esta corriendo (fallback HTTP a `POST /layers/refresh-cache` del backend mapalab).
 
 ## Variables de entorno
 
-Heredadas del `docker-compose.yml` raiz. Mantienen el prefijo `MAPALAB_CARD_` por compatibilidad con el ETL legacy, pero ya son de uso general del container:
+Heredadas del `docker-compose.yml` raiz:
 
-- `MAPALAB_CARD_DB_USER`, `MAPALAB_CARD_DB_PASSWORD`, `MAPALAB_CARD_DB_HOST`, `MAPALAB_CARD_DB_PORT`, `MAPALAB_CARD_DB_NAME`, `MAPALAB_CARD_DB_SSLMODE`
+- `DATAENGINE_DB_USER`, `DATAENGINE_DB_PASSWORD`, `DATAENGINE_DB_HOST`, `DATAENGINE_DB_PORT`, `DATAENGINE_DB_NAME`, `DATAENGINE_DB_SSLMODE`
 - `DATAENGINE_URL` (alternativa: URL completa; tiene prioridad si esta seteada)
 - `MAPALAB_STATS_DB_USER` / `MAPALAB_STATS_DB_PASSWORD` (opcional; override de credenciales solo para el refresh de stats)
-
-Para el ETL legacy:
-
-- `MAPALAB_CARD_DATA_WORKING_DIR`, `MAPALAB_CARD_DATA_ERROR_DIR`
-- `MAPALAB_CARD_GOOGLE_CREDENTIALS_PATH` → ruta dentro del container a un JSON de service account GCP. **El archivo no vive en el repo** (ver [Credencial GCP](#credencial-gcp))
-- `MAPALAB_CARD_GOOGLE_SHEET_URL`
-- `FORCE_LEGACY_ETL=1` → obliga a correr `run_bootstrap.py` pese al deprecation
 
 ## Template catalog de `stats_config`
 
@@ -51,36 +45,22 @@ Para el ETL legacy:
 
 Resultado por config: `{ posicion, nombre, simbolo, valor }`, persistido como array JSONB en `values`.
 
-## Legado: ETL Google Sheet
-
-`run_bootstrap.py` ingestaba `public.mapalab_card` desde un Google Sheet con credenciales de service account.
-
-Desde v1.4.0 de MapaLab, la fuente de verdad es `mapalab.layer_metadata` + `mapalab.layer_stats` (editable desde mariachi `/administrador/mapalab/layers`). El script emite deprecation warning y termina sin hacer nada salvo `FORCE_LEGACY_ETL=1`.
-
-Se conserva como fallback para reingesta puntual del Sheet. Eliminar en futuros releases si deja de usarse.
-
-## Credencial GCP
-
-Archivo `iieg2025-cloud-<id>.json` (service account) vive en el host, no en el repo. Esta en `.gitignore`.
-
-- Colocarlo en el volumen/working dir del container en la ruta indicada por `MAPALAB_CARD_GOOGLE_CREDENTIALS_PATH` (default `/app/iieg2025-cloud-bc7772dcc9c2.json`).
-- Solo lo necesita el ETL legado (`run_bootstrap.py`); los 3 jobs de refresh no lo tocan.
-
 ## Estructura del container
 
 ```
 jobs/
 ├── Dockerfile                  # python:3.13-slim + cron
-├── entrypoint.sh               # alembic legacy (best-effort) + exporta envs + tail log + cron -f
+├── entrypoint.sh               # exporta DATAENGINE_* a /etc/environment + tail log + cron -f
 ├── crontab                     # 3 schedules instalados en /etc/cron.d/jobs
-├── requirements.txt            # sqlalchemy, psycopg2, pandas, gspread (legacy)
+├── requirements.txt            # sqlalchemy, psycopg2, rich, python-dotenv
 ├── run_refresh_periodicity.py
 ├── run_refresh_layer_tree.py
 ├── run_refresh_layer_stats.py
-├── run_bootstrap.py            # LEGACY — deprecated
-├── core/                       # framework ETL del legacy (acciones, sources, config)
-├── alembic/mapalab_card/       # migraciones legacy
-└── bootstrap/                  # scripts de bootstrap v1.4.0 (ver docs/bootstrap-v14.md)
+├── bootstrap/                  # scripts one-shot del bootstrap v1.4.0 (ver docs/bootstrap-v14.md)
+│   ├── v14_schema.sql
+│   ├── run_seed_layers.py
+│   └── run_migrate_mapalab_card.py
+└── core/                       # utilidades compartidas (logger, etc.)
 ```
 
-Cron corre en foreground (`cron -f`). El entrypoint exporta envs del container a `/etc/environment` para que los jobs las vean via cron, y hace `tail -F` del log para que `docker logs` vea las lineas de los jobs.
+Cron corre en foreground (`cron -f`). El entrypoint exporta las envs `DATAENGINE_*` del container a `/etc/environment` para que los jobs las vean via cron, y hace `tail -F` del log para que `docker logs` vea las lineas de los jobs.

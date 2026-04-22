@@ -1,5 +1,7 @@
 # mapalab-dataengine
 
+**Version:** 1.5.0 ([changelog](docs/CHANGELOG.md))
+
 Stack PostgreSQL para produccion: primary con SSL, pooler, respaldos automaticos con subida al Acervo de Objetos y un container de jobs periodicos sobre el schema `mapalab` (fuente de verdad de MapaLab v1.4.0+).
 
 ## Servicios
@@ -27,7 +29,7 @@ cp .env.example .env
 make up
 ```
 
-`make up` genera certificados SSL la primera vez (idempotente) y, en `ENV=production`, instala el cron job de ingesta.
+`make up` genera certificados SSL la primera vez (idempotente) y, en `ENV=production`, instala el cron job del host.
 
 ## Bootstrap v1.4.0 MapaLab
 
@@ -37,11 +39,11 @@ La primera vez que se monta el stack para MapaLab v1.4.0+ hay que correr el boot
 make bootstrap-v14 LAYERS_JSON=/ruta/a/layers_export.json
 ```
 
-Pasos, flags e idempotencia en [`docs/bootstrap-v14.md`](docs/bootstrap-v14.md).
+Pasos, flags, idempotencia y secuencia de deploy en produccion en [`docs/bootstrap-v14.md`](docs/bootstrap-v14.md).
 
 ## Jobs periodicos
 
-El container `jobs` corre 3 refresh diarios y reemplaza al antiguo `mapalab-card` (que era solo ETL del Google Sheet). Cron, template catalog de stats y credencial GCP del legado en [`docs/jobs.md`](docs/jobs.md).
+El container `jobs` corre 3 refresh diarios sobre el schema `mapalab`. Cron, template catalog de stats y variables de entorno en [`docs/jobs.md`](docs/jobs.md).
 
 ## Comandos
 
@@ -68,21 +70,21 @@ make shell            # psql en primary
 # respaldos
 make backup                      # solo en ENV=production
 make restore FILE=mi_dump.dump   # restaura dentro del container primary
-make restore-local FILE=...      # restaura contra la DB remota usando vars del .env
+make restore-local FILE=...      # restaura contra la BD remota usando vars DATAENGINE_DB_* del .env
 
-# jobs
-make card                 # ingesta legacy del Google Sheet (no-op salvo FORCE_LEGACY_ETL=1)
+# jobs periodicos sobre mapalab schema
 make refresh-periodicity  # refresca public.layer_periodicity
 make refresh-layer-tree   # rebuild de mapalab.layer_tree_cache
 make refresh-layer-stats  # evalua stats_config de mapalab.layer_stats
 make refresh-all          # los 3 refresh en orden
 make check-periodicity    # verifica si la periodicidad esta al dia
 
-# bootstrap v1.4.0
+# bootstrap v1.4.0 y migracion 1-shot
 make bootstrap-v14 LAYERS_JSON=...
 make bootstrap-v14-dry
+make migrate-mapalab-card  # re-sync public.mapalab_card -> mapalab.layer_metadata+stats
 
-# cron host (solo para make card)
+# cron host
 make cron-install
 make cron-remove
 
@@ -106,11 +108,11 @@ make certs
 
 Formatos: `.dump` (custom de `pg_dump`, recomendado), `.sql`, `.sql.gz`.
 
-Tambien `make restore-local FILE=...` para restaurar contra la BD remota usando `MAPALAB_CARD_DB_*` del `.env`.
+Tambien `make restore-local FILE=...` para restaurar contra la BD remota usando `DATAENGINE_DB_*` del `.env`.
 
 ## Respaldos
 
-En `ENV=production`, el container `pg-backup` corre `backup/do-backup.sh` diariamente a las 08:00 AM y sube el dump al Acervo de Objetos. Retencion local: 7 dias en `./volumes/backups/`.
+En `ENV=production`, el container `pg-backup` corre un dump semanal (domingos 02:00 UTC) y sube el archivo al Acervo de Objetos. Retencion local: 30 dias en `./volumes/backups/`.
 
 `make backup` fuerza un respaldo manual (tambien solo en `ENV=production`). `DEBUG=1 make backup` activa verbose.
 
@@ -128,13 +130,11 @@ Copiar `.env.example` a `.env` y configurar al menos:
 | `PGBOUNCER_PORT` | Puerto host del pooler (default `6432`) |
 | `PGDATA` | Path dentro del container para datos |
 | `POSTGRES_PRIMARY_DATA` | Volumen host para `/var/lib/postgresql/data` |
-| `BACKUP_DATA` | Volumen host para dumps y datos del job legado |
+| `BACKUP_DATA` | Volumen host para dumps (`/backups` en `pg-backup`) |
 | `AO_ENDPOINT` / `AO_BUCKET` / `AO_ACCESS_KEY` / `AO_SECRET_KEY` | Acervo de Objetos |
-| `MAPALAB_CARD_GOOGLE_SHEET_URL` | URL del Sheet legado (solo si se usa `FORCE_LEGACY_ETL=1`) |
-| `MAPALAB_CARD_GOOGLE_CREDENTIALS_PATH` | Path del service account GCP dentro del container |
-| `CRON_SCHEDULE` | Hora del cron host de `make card` en formato `HH:MM` |
+| `CRON_SCHEDULE` | Hora del cron host en formato `HH:MM` |
 
-La credencial GCP del ETL legado (`iieg2025-cloud-*.json`) no vive en el repo — montarla manualmente en el host y referenciar via env. Detalles en [`docs/jobs.md`](docs/jobs.md#credencial-gcp).
+El container `jobs` recibe sus credenciales DB via `DATAENGINE_DB_*`, inyectadas desde las `POSTGRES_*` en el `docker-compose.yml`. Ver [`docs/jobs.md`](docs/jobs.md#variables-de-entorno) para vars opcionales (`DATAENGINE_URL`, `MAPALAB_STATS_DB_*`).
 
 ## Control de acceso
 
@@ -164,6 +164,7 @@ sslmode:  require
 ## Docs
 
 - [`docs/architecture.md`](docs/architecture.md) — componentes, schema `mapalab`, volumenes
-- [`docs/jobs.md`](docs/jobs.md) — cron container, template catalog, legado ETL
-- [`docs/bootstrap-v14.md`](docs/bootstrap-v14.md) — bootstrap del schema `mapalab`
+- [`docs/jobs.md`](docs/jobs.md) — cron container y template catalog
+- [`docs/bootstrap-v14.md`](docs/bootstrap-v14.md) — bootstrap del schema `mapalab` y secuencia de deploy
 - [`docs/CHANGELOG.md`](docs/CHANGELOG.md) — cambios por version
+- [`docs/context.md`](docs/context.md) — mapa feature → archivos y TODOs
