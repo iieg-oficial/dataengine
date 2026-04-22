@@ -9,7 +9,9 @@ volumes/
 postgres/certs/
 backup/mc
 *.log
-mapalab_card/**/*.env
-mapalab_card/**/*.csv
 __pycache__/
-mapalab_card/iieg2025-cloud-bc7772dcc9c2.json
+
+jobs/**/*.env
+jobs/**/*.csv
+jobs/iieg2025-cloud-*.json
+jobs/bootstrap/_layers_export.json
