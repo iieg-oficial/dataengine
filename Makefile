@@ -6,10 +6,11 @@ CRON_HOUR   = $(word 1,$(subst :, ,$(CRON_SCHEDULE)))
 CRON_MINUTE = $(word 2,$(subst :, ,$(CRON_SCHEDULE)))
 CRON_JOB    = $(CRON_MINUTE) $(CRON_HOUR) * * * cd $(PROJECT_DIR) && make card >> $(PROJECT_DIR)/logs/cron_card.log 2>&1
 
-.PHONY: help up down restart ps logs logs-primary logs-backup \
-        shell backup restore clean build certs \
-        cron-install cron-remove card refresh-periodicity check-periodicity \
-        fw-status fw-setup fw-reset
+.PHONY: help up down restart ps logs logs-primary logs-backup logs-jobs \
+        shell backup restore restore-local clean build certs \
+        cron-install cron-remove \
+        refresh-periodicity refresh-layer-tree refresh-layer-stats refresh-all \
+        check-periodicity prod-migration
 
 help:
 	@echo ""
@@ -22,6 +23,7 @@ help:
 	@echo "  logs            Logs de todos los servicios"
 	@echo "  logs-primary    Logs del primary"
 	@echo "  logs-backup     Logs del backup"
+	@echo "  logs-jobs       Logs del cron en dataengine-jobs"
 	@echo ""
 	@echo "  shell           Consola psql en primary"
 	@echo ""
@@ -31,15 +33,17 @@ help:
 	@echo "  certs           Generar certificados SSL (solo primera vez)"
 	@echo "  clean           Eliminar volumenes (DESTRUCTIVO)"
 	@echo ""
-	@echo "  card                Ingesta tarjetas desde csv track card capa"
+	@echo "  prod-migration      Pull final Sheet + bootstrap v1.4.0 + seed + migrate + stamp"
+	@echo "                      Ver: make prod-migration PROD_MIGRATION_FLAGS=\"--skip-etl\""
+	@echo ""
 	@echo "  refresh-periodicity Refrescar tabla de periodicidad (SQL)"
 	@echo "  refresh-layer-tree  Refrescar cache del arbol de capas MapaLab"
-	@echo "  refresh-all         Ejecutar refresh-periodicity + refresh-layer-tree"
+	@echo "  refresh-layer-stats Refrescar stats (numeralia) del catalogo"
+	@echo "  refresh-all         Ejecutar los tres refresh en orden"
 	@echo "  check-periodicity   Verificar si periodicidad esta al dia"
-	@echo "  logs-jobs           Ver logs del cron en dataengine-jobs"
 	@echo ""
-	@echo "  cron-install    Instalar cron job diario para make card"
-	@echo "  cron-remove     Remover cron job de ingesta"
+	@echo "  cron-install    Instalar cron job (solo ENV=production)"
+	@echo "  cron-remove     Remover cron job"
 	@echo ""
 
 certs:
@@ -132,21 +136,8 @@ refresh-layer-stats:
 refresh-all: refresh-periodicity refresh-layer-tree refresh-layer-stats
 	@echo "Todo refresh completado"
 
-bootstrap-v14:
-	@if [ -z "$(LAYERS_JSON)" ]; then \
-		echo "Uso: make bootstrap-v14 LAYERS_JSON=/path/to/layers_export.json"; \
-		echo "     Genera el JSON con: cd /IIEG/mapalab/frontend && node scripts/export_layers_to_json.mjs"; \
-		exit 1; \
-	fi
-	@./scripts/bootstrap-v14.sh --layers-json "$(LAYERS_JSON)" $(BOOTSTRAP_FLAGS)
-
-bootstrap-v14-dry:
-	@./scripts/bootstrap-v14.sh --dry-run $(if $(LAYERS_JSON),--layers-json $(LAYERS_JSON),--skip-seed)
-
-migrate-mapalab-card:
-	@echo "Migrando public.mapalab_card -> mapalab.layer_metadata + layer_stats (1-shot, idempotente)..."
-	@docker compose exec -T jobs python bootstrap/run_migrate_mapalab_card.py --apply
-	@echo "OK. Validar con: docker compose exec postgres-primary psql -U $(POSTGRES_USER) -d $(POSTGRES_DB) -c 'SELECT COUNT(*) FROM mapalab.layer_metadata;'"
+prod-migration:
+	@./scripts/prod-migration.sh $(PROD_MIGRATION_FLAGS)
 
 logs-jobs:
 	@docker compose exec jobs tail -n 100 -f /var/log/cron.log
