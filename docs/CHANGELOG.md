@@ -8,18 +8,41 @@ de `mapalab-dataengine` es independiente del de MapaLab.
 
 ## [No publicado]
 
+## [1.6.0] - 2026-04-23
+
+`make prod-migration` consolidado como unico orquestador, con un paso nuevo de GRANTs sobre `mapalab.*` que hace el flujo idempotente de punta a punta y desbloquea a mariachi sin runbooks manuales.
+
 ### Agregado
+- **Paso 3b en `scripts/bootstrap-v14.sh`: GRANTs sobre `mapalab.*` para `mariachi_layers`**. Despues de aplicar `v14_schema.sql` (que crea las tablas como `POSTGRES_USER`), corre `GRANT SELECT/INSERT/UPDATE/DELETE` sobre todas las tablas y sequences del schema + `ALTER DEFAULT PRIVILEGES` para objetos futuros creados por el mismo rol. Sin esto, `mariachi_layers` queda owner del schema pero sin acceso a las tablas, y el editor de capas en mariachi truena con `permission denied for table layers`. Idempotente.
+- **Checklist extendido** al final de `bootstrap-v14.sh`:
+  - Nuevo "Paso 3: Conectividad mariachi-api ↔ DataEngine" distinguiendo dev/staging (red docker external) vs produccion (`ALLOWED_HOSTS` + reload de `pg_hba.conf` + `sslmode=require`).
+  - Nueva seccion "TROUBLESHOOTING: `permission denied for table layers`" con comando de re-aplicacion rapida (`./scripts/bootstrap-v14.sh --skip-role --skip-seed --skip-migrate`) + las 5 queries SQL exactas como fallback standalone.
 - `scripts/prod-migration.sh` + `make prod-migration` — orquesta pull final del Google Sheet (restaurando temporalmente el ETL legacy desde git) + bootstrap v1.4.0 + seed + migrate + stamp alembic en una sola llamada.
 - `jobs/bootstrap/layers_export.json` versionado — baseline del tree de capas (250 nodos, 9 temas) recuperado del commit pre-refactor.
 - `scripts/drop_mapalab_card_validation.sql` — checklist SQL para validar paridad antes de dropear `public.mapalab_card`.
 
 ### Cambiado
-- `scripts/bootstrap-v14.sh` — al finalizar hace `alembic stamp dataengine@head` automaticamente si detecta container mariachi, e imprime los 7 pasos siguientes de produccion.
+- `scripts/bootstrap-v14.sh` — al finalizar hace `alembic stamp dataengine@head` automaticamente si detecta container mariachi, e imprime los pasos siguientes de produccion (ahora 8 pasos, antes 7) + bloque de troubleshooting.
 - `jobs/bootstrap/v14_schema.sql` marcado como FROZEN (baseline v1.4.0, no se modifica mas). Cambios futuros via alembic.
+- `README.md`: version bump a 1.6.0.
 
 ### Eliminado
 - Targets make `bootstrap-v14`, `bootstrap-v14-dry`, `migrate-mapalab-card` — consolidados en `make prod-migration`. El script `scripts/bootstrap-v14.sh` sigue existiendo como orquestador interno.
 - Archivos huerfanos: `postgres/replica/start-replica.sh`, `postgres/primary/init/02-init-replication.sh`.
+
+### Notas de deploy
+Esta version desbloquea el editor de capas en mariachi sin pasos manuales post-bootstrap. Si actualizas un DataEngine **ya provisionado** con una version anterior (donde `mariachi_layers` existe pero no tiene GRANTs sobre las tablas), correr una sola vez para que el editor empiece a funcionar:
+
+```bash
+./scripts/bootstrap-v14.sh --skip-role --skip-seed --skip-migrate
+```
+
+Eso re-aplica solo el Paso 2 (idempotente), Paso 3 (idempotente) y el nuevo Paso 3b.
+
+### Requiere
+Compatible con `mariachi >= 0.13.0` (que configura `DATAENGINE_DATABASE_URL` y `MAPALAB_BACKEND_URL` en sus `.env.*`).
+
+---
 
 ## [1.5.0] - 2026-04-22
 

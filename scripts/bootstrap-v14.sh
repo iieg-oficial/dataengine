@@ -162,6 +162,28 @@ SQL
             | grep -vE "^(INSERT|COMMIT|BEGIN)" || true
         echo "  Schema aplicado."
     fi
+
+    # Paso 3b: las tablas recien aplicadas (y las que crean migraciones futuras
+    # de alembic corriendo como POSTGRES_USER) quedan owned por POSTGRES_USER,
+    # no por mariachi_layers (que solo es owner del schema). Sin estos GRANTs,
+    # el editor de capas en mariachi truena con "permission denied for table
+    # layers". Idempotente, seguro de correr varias veces.
+    echo
+    echo "--- Paso 3b/5: GRANTs sobre mapalab.* para mariachi_layers ---"
+    if [ $DRY_RUN -eq 1 ]; then
+        echo "  [dry-run] GRANT SELECT/INSERT/UPDATE/DELETE ON ALL TABLES IN SCHEMA mapalab"
+    else
+        _exec_primary psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -v ON_ERROR_STOP=1 <<SQL
+GRANT USAGE ON SCHEMA mapalab TO mariachi_layers;
+GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA mapalab TO mariachi_layers;
+GRANT USAGE, SELECT, UPDATE ON ALL SEQUENCES IN SCHEMA mapalab TO mariachi_layers;
+ALTER DEFAULT PRIVILEGES FOR ROLE ${POSTGRES_USER} IN SCHEMA mapalab
+    GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO mariachi_layers;
+ALTER DEFAULT PRIVILEGES FOR ROLE ${POSTGRES_USER} IN SCHEMA mapalab
+    GRANT USAGE, SELECT, UPDATE ON SEQUENCES TO mariachi_layers;
+SQL
+        echo "  GRANTs aplicados."
+    fi
 else
     echo "--- Pasos 2-3/5: SKIP schema ---"
 fi
@@ -266,22 +288,65 @@ echo "      MAPALAB_BACKEND_URL=http://mapalab-backend:8000"
 echo "      COOKIE_DOMAIN=<tu-subdominio>.tu-dominio.com"
 echo "      ACERVO_ENDPOINT / ACERVO_ACCESS_KEY / ACERVO_SECRET_KEY"
 echo
-echo " 3. Restart de mariachi-api para levantar el engine secundario:"
+echo " 3. Conectividad mariachi-api ↔ DataEngine (importante, no lo hace este script):"
+echo
+echo "    dev / staging (mismo host, compose):"
+echo "      En docker-compose.*.yml del mariachi, servicio 'api':"
+echo "        networks:"
+echo "          - mariachi_network_[dev]"
+echo "          - dataengine-network   # external: true"
+echo
+echo "    produccion (servers separados):"
+echo "      a) En mapalab-dataengine/.env:"
+echo "           ALLOWED_HOSTS=<ip-o-cidr-server-mariachi>"
+echo "         luego:  docker compose exec postgres-primary psql -U \$POSTGRES_USER \\"
+echo "                   -c \"SELECT pg_reload_conf();\""
+echo "      b) En mariachi/.env.production el URL incluye '?sslmode=require'."
+echo
+echo " 4. Restart de mariachi-api para levantar el engine secundario:"
 echo "      cd /IIEG/mariachi && docker compose restart api"
 echo
-echo " 4. Verificar que alembic esta en head (esperado: dataengine@head):"
+echo " 5. Verificar que alembic esta en head (esperado: dataengine@head):"
 echo "      docker compose exec api alembic -x db=dataengine current"
 echo
-echo " 5. Verificar endpoints:"
+echo " 6. Verificar endpoints:"
 echo "      curl -sI https://<dominio>/mapalab/api/layers/tree | grep -i etag"
 echo "      curl -u admin:<pwd> https://<dominio>/api/administrador/layers | head -c 200"
 echo
-echo " 6. (Opcional) Si tenias public.mapalab_card en prod, validar paridad con"
+echo " 7. (Opcional) Si tenias public.mapalab_card en prod, validar paridad con"
 echo "    mapalab.layer_metadata antes de hacer DROP:"
 echo "      psql ... -f scripts/drop_mapalab_card_validation.sql"
 echo
-echo " 7. Confirmar que gateway-hub tiene los bloqueos admin activos:"
+echo " 8. Confirmar que gateway-hub tiene los bloqueos admin activos:"
 echo "      curl -X POST https://<dominio>/mapalab/api/layers/refresh-cache"
 echo "      (debe responder 403)"
+echo
+echo "------------------------------------------------------------------------"
+echo " TROUBLESHOOTING: 'permission denied for table layers'"
+echo "------------------------------------------------------------------------"
+echo
+echo " Los GRANTs sobre mapalab.* a mariachi_layers se aplican automaticamente"
+echo " en el Paso 3b de bootstrap-v14.sh. Si aun asi mariachi devuelve 500 con"
+echo " 'permission denied for table <X>' (p.ej. porque alguien corrio el SQL"
+echo " suelto sin pasar por este script, o hay tablas nuevas creadas fuera"
+echo " del default privileges), re-aplicalos standalone:"
+echo
+echo "      ./scripts/bootstrap-v14.sh --skip-role --skip-seed --skip-migrate"
+echo
+echo " Eso vuelve a correr solo Paso 2 (idempotente) + Paso 3 (re-aplica"
+echo " v14_schema.sql, idempotente) + Paso 3b (re-corre los GRANTs)."
+echo
+echo " Si quieres solo los GRANTs sin tocar schema ni v14_schema.sql, estas"
+echo " son las queries exactas (correr como superuser = \$POSTGRES_USER):"
+echo
+echo "      GRANT USAGE ON SCHEMA mapalab TO mariachi_layers;"
+echo "      GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA mapalab"
+echo "          TO mariachi_layers;"
+echo "      GRANT USAGE, SELECT, UPDATE ON ALL SEQUENCES IN SCHEMA mapalab"
+echo "          TO mariachi_layers;"
+echo "      ALTER DEFAULT PRIVILEGES FOR ROLE \$POSTGRES_USER IN SCHEMA mapalab"
+echo "          GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO mariachi_layers;"
+echo "      ALTER DEFAULT PRIVILEGES FOR ROLE \$POSTGRES_USER IN SCHEMA mapalab"
+echo "          GRANT USAGE, SELECT, UPDATE ON SEQUENCES TO mariachi_layers;"
 echo
 echo "========================================================================"
