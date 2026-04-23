@@ -1,3 +1,8 @@
+-- FROZEN (2026-04-23): baseline de bootstrap del schema mapalab.* para v1.4.0.
+-- NO se modifica. Cambios futuros de schema van como migracion alembic en
+-- mariachi/api/alembic/versions/dataengine/. Ver
+-- gateway-hub/docs/ecosystem.md seccion 7.3 para la politica de ownership.
+
 BEGIN;
 
 CREATE TABLE IF NOT EXISTS mapalab.workspaces (
