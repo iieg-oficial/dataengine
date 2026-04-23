@@ -62,15 +62,17 @@ set +a
 : "${POSTGRES_PASSWORD:?POSTGRES_PASSWORD no esta en .env}"
 : "${POSTGRES_DB:?POSTGRES_DB no esta en .env}"
 
+PRIMARY_SERVICE="postgres-primary"
+JOBS_SERVICE="jobs"
 PRIMARY_CONTAINER="dataengine-primary"
 JOBS_CONTAINER="dataengine-jobs"
 
 _exec_primary() {
-    docker compose exec -T -e PGPASSWORD="$POSTGRES_PASSWORD" "$PRIMARY_CONTAINER" "$@"
+    docker compose exec -T -e PGPASSWORD="$POSTGRES_PASSWORD" "$PRIMARY_SERVICE" "$@"
 }
 
 _exec_jobs() {
-    docker compose exec -T "$JOBS_CONTAINER" "$@"
+    docker compose exec -T "$JOBS_SERVICE" "$@"
 }
 
 _check_container_running() {
@@ -151,10 +153,13 @@ SQL
     echo
     echo "--- Paso 3/5: aplicar schema (tablas + seed workspaces) ---"
     if [ $DRY_RUN -eq 1 ]; then
-        echo "  [dry-run] psql -f /app/bootstrap/v14_schema.sql"
+        echo "  [dry-run] psql -f v14_schema.sql (via postgres-primary stdin)"
     else
-        _exec_jobs bash -c 'PGPASSWORD="$MAPALAB_CARD_DB_PASSWORD" psql -U "$MAPALAB_CARD_DB_USER" -h "$MAPALAB_CARD_DB_HOST" -d "$MAPALAB_CARD_DB_NAME" -v ON_ERROR_STOP=1 -f /app/bootstrap/v14_schema.sql' 2>&1 \
-            | grep -v "^INSERT " || true
+        # El container 'jobs' no tiene psql instalado. Corremos el SQL desde
+        # postgres-primary via stdin (el archivo vive en el host).
+        _exec_primary psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -v ON_ERROR_STOP=1 \
+            < "$REPO_ROOT/jobs/bootstrap/v14_schema.sql" 2>&1 \
+            | grep -vE "^(INSERT|COMMIT|BEGIN)" || true
         echo "  Schema aplicado."
     fi
 else
@@ -166,7 +171,9 @@ if [ $SKIP_SEED -eq 0 ]; then
     echo "--- Paso 4/5: seed de layers desde JSON ---"
     if [ -z "$LAYERS_JSON" ]; then
         echo "  ERROR: --layers-json es requerido para esta fase (o usa --skip-seed)" >&2
-        echo "  Genera el JSON con: cd /IIEG/mapalab/frontend && node scripts/export_layers_to_json.mjs" >&2
+        echo "  El repo trae un baseline: jobs/bootstrap/layers_export.json" >&2
+        echo "  Usar: make bootstrap-v14   (toma el baseline por default)" >&2
+        echo "        o --layers-json /ruta/custom.json para uno propio" >&2
         exit 1
     fi
     if [ ! -f "$LAYERS_JSON" ]; then
@@ -174,16 +181,17 @@ if [ $SKIP_SEED -eq 0 ]; then
         exit 1
     fi
 
-    local_copy="$REPO_ROOT/jobs/bootstrap/_layers_export.json"
-    cp "$LAYERS_JSON" "$local_copy"
-    echo "  JSON copiado a jobs/bootstrap/ ($(wc -l < "$local_copy") lineas)"
+    # jobs/ no esta bind-mounted: el codigo vive en la imagen via COPY.
+    # Usamos docker cp para meter el JSON al container antes de correr el seed.
+    echo "  JSON: $LAYERS_JSON ($(wc -l < "$LAYERS_JSON") lineas)"
+    docker cp "$LAYERS_JSON" "$JOBS_CONTAINER:/tmp/_layers_export.json"
 
     if [ $DRY_RUN -eq 1 ]; then
-        _exec_jobs python /app/bootstrap/run_seed_layers.py --input /app/bootstrap/_layers_export.json
+        _exec_jobs python /app/bootstrap/run_seed_layers.py --input /tmp/_layers_export.json
     else
-        _exec_jobs python /app/bootstrap/run_seed_layers.py --input /app/bootstrap/_layers_export.json --apply
+        _exec_jobs python /app/bootstrap/run_seed_layers.py --input /tmp/_layers_export.json --apply
     fi
-    rm -f "$local_copy"
+    _exec_jobs rm -f /tmp/_layers_export.json
 else
     echo "--- Paso 4/5: SKIP seed ---"
 fi
@@ -207,6 +215,35 @@ if [ $DRY_RUN -eq 0 ]; then
 fi
 
 echo
+echo "--- Post-bootstrap: sellar estado de alembic en mariachi ---"
+# Politica (ecosystem §7.3): alembic autoritativo, v14_schema.sql frozen como baseline.
+# Stampeamos dataengine@head para que migraciones futuras (0004+) apliquen sin reintentar el baseline.
+MARIACHI_CONTAINER=""
+for c in mariachi-api mariachi-api-dev; do
+    if docker ps --format '{{.Names}}' | grep -q "^${c}$"; then
+        MARIACHI_CONTAINER="$c"
+        break
+    fi
+done
+
+if [ -n "$MARIACHI_CONTAINER" ]; then
+    if [ $DRY_RUN -eq 1 ]; then
+        echo "  [dry-run] docker exec $MARIACHI_CONTAINER alembic -x db=dataengine stamp dataengine@head"
+    else
+        if docker exec -T "$MARIACHI_CONTAINER" alembic -x db=dataengine stamp dataengine@head >/dev/null 2>&1; then
+            echo "  OK: alembic stamped en dataengine@head (container $MARIACHI_CONTAINER)."
+        else
+            echo "  WARN: alembic stamp fallo. Correr manualmente cuando mariachi este listo:"
+            echo "    docker exec $MARIACHI_CONTAINER alembic -x db=dataengine stamp dataengine@head"
+        fi
+    fi
+else
+    echo "  Container mariachi no detectado (buscado: mariachi-api, mariachi-api-dev)."
+    echo "  Correr manualmente desde mariachi cuando este arriba:"
+    echo "    docker compose exec api alembic -x db=dataengine stamp dataengine@head"
+fi
+
+echo
 echo "=== bootstrap-v14 completado ==="
 if [ -n "$ML_PASSWORD" ] && [ "$ROLE_EXISTS" != "1" ]; then
     echo
@@ -215,3 +252,36 @@ if [ -n "$ML_PASSWORD" ] && [ "$ROLE_EXISTS" != "1" ]; then
     echo
     echo "    (Solo se muestra una vez. Si lo pierdes: ./scripts/bootstrap-v14.sh --skip-schema --skip-seed --skip-migrate --password <nuevo>)"
 fi
+
+echo
+echo "========================================================================"
+echo " PASOS SIGUIENTES EN PRODUCCION"
+echo "========================================================================"
+echo
+echo " 1. Guardar el DATAENGINE_DATABASE_URL impreso arriba en mariachi:"
+echo "      /IIEG/mariachi/.env.production  (archivo no versionado)"
+echo
+echo " 2. Confirmar tambien en ese .env.production:"
+echo "      MAPALAB_BACKEND_URL=http://mapalab-backend:8000"
+echo "      COOKIE_DOMAIN=<tu-subdominio>.tu-dominio.com"
+echo "      ACERVO_ENDPOINT / ACERVO_ACCESS_KEY / ACERVO_SECRET_KEY"
+echo
+echo " 3. Restart de mariachi-api para levantar el engine secundario:"
+echo "      cd /IIEG/mariachi && docker compose restart api"
+echo
+echo " 4. Verificar que alembic esta en head (esperado: dataengine@head):"
+echo "      docker compose exec api alembic -x db=dataengine current"
+echo
+echo " 5. Verificar endpoints:"
+echo "      curl -sI https://<dominio>/mapalab/api/layers/tree | grep -i etag"
+echo "      curl -u admin:<pwd> https://<dominio>/api/administrador/layers | head -c 200"
+echo
+echo " 6. (Opcional) Si tenias public.mapalab_card en prod, validar paridad con"
+echo "    mapalab.layer_metadata antes de hacer DROP:"
+echo "      psql ... -f scripts/drop_mapalab_card_validation.sql"
+echo
+echo " 7. Confirmar que gateway-hub tiene los bloqueos admin activos:"
+echo "      curl -X POST https://<dominio>/mapalab/api/layers/refresh-cache"
+echo "      (debe responder 403)"
+echo
+echo "========================================================================"
