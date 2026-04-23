@@ -5,20 +5,20 @@ Snapshot del estado del proyecto al 2026-04-22 (version actual: `1.5.0`). Este a
 ## TODOs / pendientes
 
 ### Documentacion
-- [ ] **Actualizar la version visible en `README.md`**: el README raiz no muestra la version actual del stack. Sugerencia: agregar un badge o linea `**Version:** 1.5.0` cerca del titulo, apuntando a `docs/CHANGELOG.md`. Hoy no hay forma de saber la version del proyecto sin abrir el CHANGELOG
+- [x] **Version visible en `README.md`** (verificado 2026-04-23): ya presente como `**Version:** 1.5.0 ([changelog](docs/CHANGELOG.md))` en la primera linea despues del titulo.
 - [ ] Sincronizar `jobs/README.md` con `docs/jobs.md` — hoy los dos documentan el container pero con solapamiento. Decidir si se conserva `jobs/README.md` (util si se publica la imagen sola) o se deja `docs/jobs.md` como fuente unica y `jobs/README.md` como stub que referencia
 - [ ] Crear/migrar `.env.example`: actualmente lista variables pero falta `PGBOUNCER_PORT` documentado claramente, `ENV` con sus valores validos explicitos, y las variables opcionales `MAPALAB_STATS_DB_USER` / `MAPALAB_STATS_DB_PASSWORD` / `DATAENGINE_URL`
 
 ### Limpieza de codigo muerto
-- [ ] **`postgres/replica/start-replica.sh`** — archivo huerfano desde `1.2.0` (remove postgres-replica). Esta trackeado en git pero no referenciado en `docker-compose.yml` ni en el Makefile. Candidato a `git rm`
-- [ ] **`postgres/primary/init/02-init-replication.sh`** — mismo caso, huerfano del streaming replication
+- [x] **`postgres/replica/start-replica.sh`** — eliminado 2026-04-23 (huerfano desde `1.2.0`). Cambio staged como `D` en git; pendiente commit.
+- [x] **`postgres/primary/init/02-init-replication.sh`** — eliminado 2026-04-23 (mismo caso).
 - [x] **`jobs/run_bootstrap.py` y toda la cadena del Google Sheet ETL** (legacy deprecado en `1.5.0`): eliminados en `1.6.0` (`core/mapalab_card/`, `core/schemas/mapalab_card.py`, `alembic/mapalab_card/`, deps `pandas/gspread/google-auth`, credenciales Google). Se conservo `jobs/bootstrap/run_migrate_mapalab_card.py` como herramienta de recuperacion idempotente
 - [ ] **Drop de `public.mapalab_card`**: la tabla sigue viva en produccion como respaldo. Una vez validado que mariachi es la unica fuente de verdad, ejecutar `DROP TABLE IF EXISTS public.mapalab_card;` y eliminar `jobs/bootstrap/run_migrate_mapalab_card.py`
 
 ### Bugs / inconsistencias detectadas durante la revision
-- [ ] **Schedule del cron de backup**: el README antiguo decia "diario a las 08:00 AM" pero `backup/crontab` tiene `0 2 * * 0` (domingos 02:00 UTC = semanal). El CHANGELOG 1.1.1 refleja el cambio a semanal. El README reescrito debe verificarse para no reintroducir la falsedad
+- [x] **Schedule del cron de backup** (verificado 2026-04-23): README dice "dump semanal (domingos 02:00 UTC)" — alineado con `backup/crontab` `0 2 * * 0` y con CHANGELOG 1.1.1. Sin drift.
 - [ ] **`jobs/run_refresh_layer_stats.py`** declara el `operation` `latest` pero el `field` requerido no esta bajo validacion `_is_identifier` cuando `op == 'count'` (caso borde). No es bug critico pero vale revisarlo
-- [ ] **`docker-compose.yml`** monta `${BACKUP_DATA}/mapalab_card:/app/data/backups` en el servicio `jobs`, path que quedo del nombre viejo. Si se mueve el dir a `/volumes/backups/jobs/`, actualizar aqui
+- [x] **`docker-compose.yml`** (verificado 2026-04-23): el mount `${BACKUP_DATA}/mapalab_card:/app/data/backups` ya no existe en el servicio `jobs`. Se removio junto con el ETL legacy. Actualmente jobs no tiene mount de backups (no lo necesita).
 
 ### Infraestructura
 - [ ] Evaluar si `scripts/optimize_delitos_views.sql` sigue vigente (no se ejecuta desde el Makefile, requiere ejecucion manual sobre la DB)
@@ -59,6 +59,12 @@ Invocable desde `scripts/bootstrap-v14.sh` (paso 5) o directamente con `docker c
 | Cron del container | `jobs/crontab` (03:00/04:00/04:30), `jobs/Dockerfile`, `jobs/entrypoint.sh` |
 | Targets make | `Makefile:126-137` (`refresh-layer-tree`, `refresh-layer-stats`, `refresh-all`), `Makefile:150-161` (`logs-jobs`, `refresh-periodicity`, `check-periodicity`) |
 
+### Ownership del schema mapalab.* (2026-04-23)
+
+**Alembic en mariachi es la fuente autoritativa** de DDL del schema `mapalab.*` hacia adelante. `jobs/bootstrap/v14_schema.sql` queda frozen como baseline de bootstrap de v1.4.0 — no se modifica. Cambios futuros (agregar columna, nueva tabla, index) entran como migracion alembic en `mariachi/api/alembic/versions/dataengine/`. Ver `gateway-hub/docs/ecosystem.md` seccion 7.3.
+
+Guardrail: `gateway-hub/scripts/check-model-drift.py` compara modelos SQLAlchemy de mapalab y mariachi y reporta drift de columnas.
+
 ### Bootstrap v1.4.0 MapaLab (1.5.0)
 
 | Feature | Archivos |
@@ -67,7 +73,7 @@ Invocable desde `scripts/bootstrap-v14.sh` (paso 5) o directamente con `docker c
 | DDL + seed workspaces | `jobs/bootstrap/v14_schema.sql` |
 | Seed de layers desde JSON | `jobs/bootstrap/run_seed_layers.py` |
 | Migracion `mapalab_card` → `layer_metadata`/`layer_stats` | `jobs/bootstrap/run_migrate_mapalab_card.py` |
-| Targets make | `Makefile:139-148` (`bootstrap-v14`, `bootstrap-v14-dry`) |
+| Target make | `make prod-migration` (orquesta ETL Sheet + bootstrap + seed + migrate + stamp) |
 
 ### PgBouncer (1.4.0)
 
@@ -118,7 +124,7 @@ Para la tabla completa ver `README.md`. Este es el agrupamiento por responsabili
 - **Observabilidad:** `logs`, `logs-primary`, `logs-backup`, `logs-jobs`
 - **DB:** `shell`, `backup` (gate `ENV=production`), `restore FILE=`, `restore-local FILE=`
 - **Jobs sobre `mapalab`:** `card` (legacy), `refresh-periodicity`, `refresh-layer-tree`, `refresh-layer-stats`, `refresh-all`, `check-periodicity`
-- **Bootstrap MapaLab v1.4:** `bootstrap-v14 LAYERS_JSON=`, `bootstrap-v14-dry`
+- **Prod migration MapaLab v1.4:** `prod-migration` (consolidado — antes eran `bootstrap-v14{,-dry}` y `migrate-mapalab-card`)
 - **Infra:** `certs`, `cron-install`, `cron-remove`
 
 ## Convenciones del proyecto

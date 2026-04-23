@@ -8,6 +8,19 @@ de `mapalab-dataengine` es independiente del de MapaLab.
 
 ## [No publicado]
 
+### Agregado
+- `scripts/prod-migration.sh` + `make prod-migration` — orquesta pull final del Google Sheet (restaurando temporalmente el ETL legacy desde git) + bootstrap v1.4.0 + seed + migrate + stamp alembic en una sola llamada.
+- `jobs/bootstrap/layers_export.json` versionado — baseline del tree de capas (250 nodos, 9 temas) recuperado del commit pre-refactor.
+- `scripts/drop_mapalab_card_validation.sql` — checklist SQL para validar paridad antes de dropear `public.mapalab_card`.
+
+### Cambiado
+- `scripts/bootstrap-v14.sh` — al finalizar hace `alembic stamp dataengine@head` automaticamente si detecta container mariachi, e imprime los 7 pasos siguientes de produccion.
+- `jobs/bootstrap/v14_schema.sql` marcado como FROZEN (baseline v1.4.0, no se modifica mas). Cambios futuros via alembic.
+
+### Eliminado
+- Targets make `bootstrap-v14`, `bootstrap-v14-dry`, `migrate-mapalab-card` — consolidados en `make prod-migration`. El script `scripts/bootstrap-v14.sh` sigue existiendo como orquestador interno.
+- Archivos huerfanos: `postgres/replica/start-replica.sh`, `postgres/primary/init/02-init-replication.sh`.
+
 ## [1.5.0] - 2026-04-22
 
 ### Agregado

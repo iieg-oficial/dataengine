@@ -22,7 +22,7 @@ make refresh-layer-tree
 make refresh-layer-stats
 make refresh-all           # los tres en orden
 make logs-jobs             # tail del log del cron
-make migrate-mapalab-card  # re-sync 1-shot public.mapalab_card -> mapalab.layer_metadata+stats
+make prod-migration        # orquesta ETL Sheet + schema + seed + migrate + stamp (antes era migrate-mapalab-card + bootstrap-v14)
 ```
 
 Desde `/IIEG/mapalab/`: `make refresh-layer-tree` delega a este container si esta corriendo (fallback HTTP a `POST /layers/refresh-cache` del backend mapalab).
