@@ -24,10 +24,11 @@ def main() -> int:
             ws_map = {w['alias']: w for w in workspaces}
 
             layers = _fetch_layers(conn)
+            aliases = _fetch_aliases(conn)
             max_updated = _max_updated_at(conn)
             count = len(layers)
 
-            tree = _build_tree(layers, ws_map)
+            tree = _build_tree(layers, ws_map, aliases)
             initial_order = _fetch_initial_order(conn)
 
             etag = _compute_etag(max_updated, count)
@@ -69,7 +70,7 @@ def _fetch_workspaces(conn) -> list[dict]:
 
 
 _LAYER_COLS = [
-    'id', 'parent_id', 'label', 'sort_order', 'node_type',
+    'id', 'slug', 'parent_id', 'label', 'sort_order', 'node_type',
     'hidden_in_menu', 'disabled',
     'workspace_alias', 'geoserver_layer', 'styles', 'cql_filter', 'wms_group',
     'wfs_available', 'wfs_layer_name', 'downloadable', 'metadata_layer',
@@ -88,6 +89,16 @@ def _fetch_layers(conn) -> list[dict]:
         "ORDER BY parent_id NULLS FIRST, sort_order, id"
     )).fetchall()
     return [dict(zip(_LAYER_COLS, r)) for r in rows]
+
+
+def _fetch_aliases(conn) -> dict[str, list[str]]:
+    rows = conn.execute(text(
+        "SELECT layer_id, alias FROM mapalab.layer_aliases ORDER BY layer_id, created_at"
+    )).fetchall()
+    out: dict[str, list[str]] = {}
+    for layer_id, alias in rows:
+        out.setdefault(layer_id, []).append(alias)
+    return out
 
 
 def _fetch_initial_order(conn) -> list[str]:
@@ -146,7 +157,7 @@ def _layer_to_search_meta(layer: dict) -> Optional[dict]:
     return meta
 
 
-def _layer_to_node(layer: dict, ws_map: dict[str, dict]) -> dict:
+def _layer_to_node(layer: dict, ws_map: dict[str, dict], aliases: dict[str, list[str]]) -> dict:
     label = layer['label']
     if layer.get('disabled'):
         label = f'*{label}'
@@ -158,6 +169,13 @@ def _layer_to_node(layer: dict, ws_map: dict[str, dict]) -> dict:
         'sortOrder': layer['sort_order'],
         'children': [],
     }
+
+    if layer.get('slug'):
+        node['slug'] = layer['slug']
+
+    layer_aliases = aliases.get(layer['id'])
+    if layer_aliases:
+        node['aliases'] = layer_aliases
 
     if layer['node_type'] == 'category':
         node['isCategory'] = True
@@ -197,12 +215,12 @@ def _layer_to_node(layer: dict, ws_map: dict[str, dict]) -> dict:
     return node
 
 
-def _build_tree(layers: list[dict], ws_map: dict[str, dict]) -> list[dict]:
+def _build_tree(layers: list[dict], ws_map: dict[str, dict], aliases: dict[str, list[str]]) -> list[dict]:
     nodes_by_id: dict[str, dict] = {}
     roots: list[dict] = []
 
     for layer in layers:
-        nodes_by_id[layer['id']] = _layer_to_node(layer, ws_map)
+        nodes_by_id[layer['id']] = _layer_to_node(layer, ws_map, aliases)
 
     for layer in layers:
         node = nodes_by_id[layer['id']]
