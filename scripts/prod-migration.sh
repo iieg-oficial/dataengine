@@ -1,24 +1,22 @@
 #!/usr/bin/env bash
-# Migracion one-shot de produccion hacia v1.4.0 (schema mapalab.* + mariachi-ready).
+# Migracion idempotente de produccion: bootstrap baseline + alembic upgrade head.
 #
 # Hace en orden:
-#   A. Pull final del Google Sheet -> public.mapalab_card (ETL legacy restaurado
-#      temporalmente desde git commit 1f70a88~1).
-#   B. Bootstrap v1.4.0: schema mapalab.*, seed de layers, migracion
-#      mapalab_card -> layer_metadata + layer_stats, stamp alembic.
+#   A. (OPCIONAL, --with-etl) Pull final del Google Sheet -> public.mapalab_card
+#      (ETL legacy restaurado temporalmente desde git commit 1f70a88~1).
+#      Default: SKIP. El Sheet quedo congelado tras la migracion v1.4.0; correrlo
+#      ahora sobrescribe ediciones de mariachi.
+#   B. Bootstrap v1.4.0+: schema mapalab.*, seed de layers, migracion
+#      mapalab_card -> layer_metadata + layer_stats, alembic upgrade head.
 #
-# Pensado para correrse UNA SOLA VEZ en la ventana de deploy a prod, cuando
-# mariachi aun no existe y el Sheet es la fuente de verdad.
-#
-# Post-ejecucion:
-#   - Editar en mariachi (en adelante Sheet queda congelado).
-#   - Correr drop_mapalab_card_validation.sql + DROP cuando confirmes paridad.
+# Idempotente. Re-ejecutable cada vez que hagas deploy con migraciones nuevas.
+# El paso B aplica TODAS las migraciones alembic pendientes (0004+, lo que sea).
 #
 # Uso:
-#   ./scripts/prod-migration.sh
-#   ./scripts/prod-migration.sh --skip-etl          # solo bootstrap (util en dev)
+#   ./scripts/prod-migration.sh                     # bootstrap + alembic upgrade head (recomendado)
+#   ./scripts/prod-migration.sh --with-etl          # incluye pull del Sheet (RARO; sobrescribe mariachi)
 #   ./scripts/prod-migration.sh --dry-run           # no aplica cambios
-#   ./scripts/prod-migration.sh --layers-json /path # override del baseline
+#   ./scripts/prod-migration.sh --layers-json /path # override del baseline JSON
 
 set -euo pipefail
 
@@ -26,13 +24,14 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 cd "$REPO_ROOT"
 
-SKIP_ETL=0
+SKIP_ETL=1
 DRY_RUN=0
 LAYERS_JSON="$REPO_ROOT/jobs/bootstrap/layers_export.json"
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
         --skip-etl) SKIP_ETL=1; shift ;;
+        --with-etl) SKIP_ETL=0; shift ;;
         --dry-run)  DRY_RUN=1; shift ;;
         --layers-json) LAYERS_JSON="$2"; shift 2 ;;
         -h|--help)  sed -n '2,25p' "$0"; exit 0 ;;

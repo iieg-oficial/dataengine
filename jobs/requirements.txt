@@ -2,6 +2,9 @@
 SQLAlchemy==1.4.54
 psycopg2-binary==2.9.11
 
+# Migrations
+alembic==1.13.3
+
 # Configuration
 python-dotenv==1.2.1
 

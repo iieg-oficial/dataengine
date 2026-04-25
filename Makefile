@@ -10,7 +10,7 @@ CRON_JOB    = $(CRON_MINUTE) $(CRON_HOUR) * * * cd $(PROJECT_DIR) && make card >
         shell backup restore restore-local clean build certs \
         cron-install cron-remove \
         refresh-periodicity refresh-layer-tree refresh-layer-stats refresh-all \
-        check-periodicity prod-migration
+        check-periodicity prod-migration migrate migrate-status
 
 help:
 	@echo ""
@@ -33,8 +33,12 @@ help:
 	@echo "  certs           Generar certificados SSL (solo primera vez)"
 	@echo "  clean           Eliminar volumenes (DESTRUCTIVO)"
 	@echo ""
-	@echo "  prod-migration      Pull final Sheet + bootstrap v1.4.0 + seed + migrate + stamp"
-	@echo "                      Ver: make prod-migration PROD_MIGRATION_FLAGS=\"--skip-etl\""
+	@echo "  prod-migration      Bootstrap idempotente + alembic upgrade head."
+	@echo "                      Default: skip-etl (ETL legacy del Sheet desactivado)."
+	@echo "                      Override:  make prod-migration PROD_MIGRATION_FLAGS=\"--with-etl\""
+	@echo ""
+	@echo "  migrate             Aplicar migraciones alembic pendientes (idempotente)"
+	@echo "  migrate-status      Mostrar version actual + history de alembic"
 	@echo ""
 	@echo "  refresh-periodicity Refrescar tabla de periodicidad (SQL)"
 	@echo "  refresh-layer-tree  Refrescar cache del arbol de capas MapaLab"
@@ -138,6 +142,18 @@ refresh-all: refresh-periodicity refresh-layer-tree refresh-layer-stats
 
 prod-migration:
 	@./scripts/prod-migration.sh $(PROD_MIGRATION_FLAGS)
+
+migrate:
+	@echo "Aplicando migraciones alembic pendientes..."
+	@docker compose exec -T jobs alembic upgrade head
+	@echo "OK"
+
+migrate-status:
+	@echo "Version actual:"
+	@docker compose exec -T jobs alembic current
+	@echo ""
+	@echo "Historia:"
+	@docker compose exec -T jobs alembic history
 
 logs-jobs:
 	@docker compose exec jobs tail -n 100 -f /var/log/cron.log

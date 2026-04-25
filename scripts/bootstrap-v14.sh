@@ -237,32 +237,17 @@ if [ $DRY_RUN -eq 0 ]; then
 fi
 
 echo
-echo "--- Post-bootstrap: sellar estado de alembic en mariachi ---"
-# Politica (ecosystem §7.3): alembic autoritativo, v14_schema.sql frozen como baseline.
-# Stampeamos dataengine@head para que migraciones futuras (0004+) apliquen sin reintentar el baseline.
-MARIACHI_CONTAINER=""
-for c in mariachi-api mariachi-api-dev; do
-    if docker ps --format '{{.Names}}' | grep -q "^${c}$"; then
-        MARIACHI_CONTAINER="$c"
-        break
-    fi
-done
-
-if [ -n "$MARIACHI_CONTAINER" ]; then
-    if [ $DRY_RUN -eq 1 ]; then
-        echo "  [dry-run] docker exec $MARIACHI_CONTAINER alembic -x db=dataengine stamp dataengine@head"
-    else
-        if docker exec -T "$MARIACHI_CONTAINER" alembic -x db=dataengine stamp dataengine@head >/dev/null 2>&1; then
-            echo "  OK: alembic stamped en dataengine@head (container $MARIACHI_CONTAINER)."
-        else
-            echo "  WARN: alembic stamp fallo. Correr manualmente cuando mariachi este listo:"
-            echo "    docker exec $MARIACHI_CONTAINER alembic -x db=dataengine stamp dataengine@head"
-        fi
-    fi
+echo "--- Post-bootstrap: aplicar migraciones alembic ---"
+# Politica (ecosystem §7.3 v2, 2026-04-24): el repo mapalab-dataengine es la
+# fuente autoritativa de migraciones del schema mapalab.*. v14_schema.sql crea
+# el baseline 0003 y lo deja stampeado en mapalab.alembic_version_dataengine.
+# Aqui corremos `alembic upgrade head` para aplicar cualquier migracion
+# posterior (0004+) sin depender del container mariachi.
+if [ $DRY_RUN -eq 1 ]; then
+    echo "  [dry-run] docker compose exec jobs alembic upgrade head"
 else
-    echo "  Container mariachi no detectado (buscado: mariachi-api, mariachi-api-dev)."
-    echo "  Correr manualmente desde mariachi cuando este arriba:"
-    echo "    docker compose exec api alembic -x db=dataengine stamp dataengine@head"
+    _exec_jobs alembic upgrade head
+    echo "  OK: alembic upgraded a head."
 fi
 
 echo
@@ -306,8 +291,9 @@ echo
 echo " 4. Restart de mariachi-api para levantar el engine secundario:"
 echo "      cd /IIEG/mariachi && docker compose restart api"
 echo
-echo " 5. Verificar que alembic esta en head (esperado: dataengine@head):"
-echo "      docker compose exec api alembic -x db=dataengine current"
+echo " 5. Verificar que alembic esta en head (desde mapalab-dataengine):"
+echo "      docker compose exec jobs alembic current"
+echo "      docker compose exec jobs alembic history"
 echo
 echo " 6. Verificar endpoints:"
 echo "      curl -sI https://<dominio>/mapalab/api/layers/tree | grep -i etag"
