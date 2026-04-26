@@ -231,23 +231,28 @@ else
 fi
 
 echo
-echo "--- Refresh inicial del cache del tree ---"
-if [ $DRY_RUN -eq 0 ]; then
-    _exec_jobs python /app/run_refresh_layer_tree.py
-fi
-
-echo
-echo "--- Post-bootstrap: aplicar migraciones alembic ---"
+echo "--- Aplicar migraciones alembic ---"
 # Politica (ecosystem §7.3 v2, 2026-04-24): el repo mapalab-dataengine es la
 # fuente autoritativa de migraciones del schema mapalab.*. v14_schema.sql crea
 # el baseline 0003 y lo deja stampeado en mapalab.alembic_version_dataengine.
 # Aqui corremos `alembic upgrade head` para aplicar cualquier migracion
 # posterior (0004+) sin depender del container mariachi.
+#
+# IMPORTANTE: este paso DEBE ir antes del refresh del tree cache. Los modelos
+# SQLAlchemy de jobs/ ya describen las columnas que agregan las migraciones
+# nuevas (ej. mapalab.layers.slug en 0004). Si el refresh corre antes que
+# alembic upgrade, el SELECT falla con "column does not exist".
 if [ $DRY_RUN -eq 1 ]; then
     echo "  [dry-run] docker compose exec jobs alembic upgrade head"
 else
     _exec_jobs alembic upgrade head
     echo "  OK: alembic upgraded a head."
+fi
+
+echo
+echo "--- Refresh inicial del cache del tree ---"
+if [ $DRY_RUN -eq 0 ]; then
+    _exec_jobs python /app/run_refresh_layer_tree.py
 fi
 
 echo

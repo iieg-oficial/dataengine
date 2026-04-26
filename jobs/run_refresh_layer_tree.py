@@ -215,12 +215,50 @@ def _layer_to_node(layer: dict, ws_map: dict[str, dict], aliases: dict[str, list
     return node
 
 
+def _inherit_little_card(nodes_by_id: dict, layers: list[dict]) -> None:
+    """Propaga `littleCard` desde el ancestro `group` mas cercano hacia los descendientes que no tengan uno propio.
+
+    El campo `inheritedFrom` queda como pista de origen (no se renderiza, util para debugging).
+    """
+    parent_of: dict[str, Optional[str]] = {layer['id']: layer.get('parent_id') for layer in layers}
+    type_of: dict[str, str] = {layer['id']: layer['node_type'] for layer in layers}
+    own_card: dict[str, bool] = {
+        layer['id']: layer.get('infobox_config') is not None for layer in layers
+    }
+
+    def find_group_ancestor_card(layer_id: str) -> Optional[tuple[str, dict]]:
+        cur = parent_of.get(layer_id)
+        while cur is not None:
+            ancestor_node = nodes_by_id.get(cur)
+            if ancestor_node is None:
+                break
+            if type_of.get(cur) == 'group' and ancestor_node.get('littleCard') is not None:
+                return cur, ancestor_node['littleCard']
+            cur = parent_of.get(cur)
+        return None
+
+    for layer in layers:
+        if own_card.get(layer['id']):
+            continue
+        if layer['node_type'] not in ('leaf', 'group'):
+            continue
+        found = find_group_ancestor_card(layer['id'])
+        if found is None:
+            continue
+        ancestor_id, card = found
+        node = nodes_by_id[layer['id']]
+        node['littleCard'] = card
+        node['inheritedFrom'] = ancestor_id
+
+
 def _build_tree(layers: list[dict], ws_map: dict[str, dict], aliases: dict[str, list[str]]) -> list[dict]:
     nodes_by_id: dict[str, dict] = {}
     roots: list[dict] = []
 
     for layer in layers:
         nodes_by_id[layer['id']] = _layer_to_node(layer, ws_map, aliases)
+
+    _inherit_little_card(nodes_by_id, layers)
 
     for layer in layers:
         node = nodes_by_id[layer['id']]

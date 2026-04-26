@@ -8,6 +8,32 @@ de `mapalab-dataengine` es independiente del de MapaLab.
 
 ## [No publicado]
 
+### Agregado
+- **Herencia automática de `littleCard` desde el ancestro `group`** (`run_refresh_layer_tree.py`):
+  Nueva función `_inherit_little_card` que, al construir el árbol del cache, propaga el
+  `infobox_config` del group ancestro más cercano hacia los descendientes (`leaf` o `group`)
+  que no tienen uno propio. Marca con `inheritedFrom: ancestor_id` para debugging.
+  Permite editar el infobox UNA vez en el group y que todos los hijos lo hereden
+  automáticamente sin replicación. Coordina con mariachi v0.26.0 que ofrece UI de
+  herencia (banner verde "Heredando de X" + botón "Personalizar para esta capa").
+  Cero cambios necesarios en el visor mapalab.
+
+### Corregido
+- **Bug del head fantasma de alembic** (`jobs/bootstrap/v14_schema.sql`):
+  El `INSERT ... ON CONFLICT DO NOTHING` insertaba `0003_metadata_stats` en cada corrida
+  del bootstrap, incluso cuando alembic ya estaba en `0005_map_shares`. Esto creaba dos
+  rows simultáneas en `mapalab.alembic_version_dataengine` y alembic interpretaba dos
+  heads activos, fallando con "Requested revision 0005_map_shares overlaps with other
+  requested revisions 0003_metadata_stats" en el siguiente `alembic upgrade head`.
+  Fix: usar `INSERT ... SELECT ... WHERE NOT EXISTS` para que el stamp del baseline
+  solo ocurra cuando la tabla está vacía (BD recién creada). En BDs ya migradas, no
+  toca nada.
+  Para BDs ya afectadas: `DELETE FROM mapalab.alembic_version_dataengine WHERE version_num = '0003_metadata_stats';`
+- **Orden bootstrap-v14.sh**: el `alembic upgrade head` se ejecuta ANTES del refresh
+  del layer_tree_cache (los modelos SQLAlchemy de jobs/ esperan columnas que agregan
+  las migraciones nuevas, ej. `mapalab.layers.slug` en 0004; sin esto el SELECT
+  fallaba con "column does not exist").
+
 ## [1.6.0] - 2026-04-23
 
 `make prod-migration` consolidado como unico orquestador, con un paso nuevo de GRANTs sobre `mapalab.*` que hace el flujo idempotente de punta a punta y desbloquea a mariachi sin runbooks manuales.
