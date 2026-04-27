@@ -80,6 +80,7 @@ _LAYER_COLS = [
     'search_tags', 'searchable_fields',
     'has_municipio', 'has_direccion', 'municipio_field', 'direccion_field',
     'infobox_template', 'infobox_config',
+    'icon_url',
 ]
 
 
@@ -183,6 +184,9 @@ def _layer_to_node(layer: dict, ws_map: dict[str, dict], aliases: dict[str, list
         node['isLabel'] = True
     elif layer['node_type'] == 'group':
         node['forceGroup'] = True
+
+    if layer['node_type'] == 'tema' and layer.get('icon_url'):
+        node['iconUrl'] = layer['icon_url']
 
     if layer.get('hidden_in_menu'):
         node['hiddenInMenu'] = True
