@@ -16,3 +16,5 @@ jobs/**/*.csv
 jobs/iieg2025-cloud-*.json
 jobs/bootstrap/_layers_export.json
 jobs/_legacy_etl/
+
+version-api/html/version.json

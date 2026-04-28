@@ -10,7 +10,8 @@ CRON_JOB    = $(CRON_MINUTE) $(CRON_HOUR) * * * cd $(PROJECT_DIR) && make card >
         shell backup restore restore-local clean build certs \
         cron-install cron-remove \
         refresh-periodicity refresh-layer-tree refresh-layer-stats refresh-all \
-        check-periodicity prod-migration migrate migrate-status
+        check-periodicity prod-migration migrate migrate-status \
+        version-json
 
 help:
 	@echo ""
@@ -49,6 +50,8 @@ help:
 	@echo "  cron-install    Instalar cron job (solo ENV=production)"
 	@echo "  cron-remove     Remover cron job"
 	@echo ""
+	@echo "  version-json    Regenerar version-api/html/version.json desde VERSION"
+	@echo ""
 
 certs:
 	@if [ -f postgres/certs/server.crt ] && [ -f postgres/certs/server.key ] && [ -f postgres/certs/ca.crt ]; then \
@@ -76,17 +79,26 @@ certs:
 		echo "Certificados SSL generados en postgres/certs/"; \
 	fi
 
-up: certs
+up: certs version-json
 	docker compose up -d
 	@$(MAKE) cron-install
 
 down:
 	docker compose down
 
-restart:
+restart: version-json
 	docker compose down
 	docker compose up -d
 	@$(MAKE) cron-install
+
+version-json:
+	@mkdir -p version-api/html
+	@VERSION=$$(tr -d '[:space:]' < VERSION); \
+	 SERVICE=$${SERVICE_NAME:-dataengine}; \
+	 RELEASED_AT=$$(grep -m1 "^## \[$$VERSION\]" docs/CHANGELOG.md | sed -E 's/^## \[[^]]+\] - ([0-9-]+).*/\1/'); \
+	 if [ -z "$$RELEASED_AT" ]; then echo "WARN: no se encontro entrada '## [$$VERSION] - YYYY-MM-DD' en docs/CHANGELOG.md" >&2; fi; \
+	 printf '{"version":"%s","service":"%s","released_at":"%s"}\n' "$$VERSION" "$$SERVICE" "$$RELEASED_AT" > version-api/html/version.json; \
+	 echo "version.json -> $$VERSION ($$SERVICE, $$RELEASED_AT)"
 
 build:
 	docker compose build --no-cache
