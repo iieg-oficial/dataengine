@@ -1,6 +1,6 @@
 # mapalab-dataengine
 
-**Version:** 1.6.0 ([changelog](docs/CHANGELOG.md))
+**Version:** 1.11.0 ([changelog](docs/CHANGELOG.md))
 
 Stack PostgreSQL para produccion: primary con SSL, pooler, respaldos automaticos con subida al Acervo de Objetos y un container de jobs periodicos sobre el schema `mapalab` (fuente de verdad de MapaLab v1.4.0+).
 

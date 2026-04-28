@@ -6,33 +6,73 @@ El formato esta basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.
 y este proyecto se adhiere a [Versionado Semantico](https://semver.org/lang/es/). El versionado
 de `mapalab-dataengine` es independiente del de MapaLab.
 
-## [No publicado]
+## [1.11.0] - 2026-04-27
+
+`icon_url` para temas: identidad visual configurable en cada nodo de tipo `tema` del árbol de capas.
 
 ### Agregado
-- **Herencia automática de `littleCard` desde el ancestro `group`** (`run_refresh_layer_tree.py`):
-  Nueva función `_inherit_little_card` que, al construir el árbol del cache, propaga el
-  `infobox_config` del group ancestro más cercano hacia los descendientes (`leaf` o `group`)
-  que no tienen uno propio. Marca con `inheritedFrom: ancestor_id` para debugging.
-  Permite editar el infobox UNA vez en el group y que todos los hijos lo hereden
-  automáticamente sin replicación. Coordina con mariachi v0.26.0 que ofrece UI de
-  herencia (banner verde "Heredando de X" + botón "Personalizar para esta capa").
-  Cero cambios necesarios en el visor mapalab.
+- **Migración alembic 0006** (`jobs/alembic/versions/20260426_0006_layer_icon_url.py`): agrega columna `icon_url TEXT` (nullable) a `mapalab.layers`. Por convención solo aplica a `node_type='tema'`.
+- `run_refresh_layer_tree.py` incluye `icon_url` en el `SELECT` y emite `iconUrl` en el JSON cacheado únicamente cuando el nodo es tema (no se propaga a leafs ni groups).
+
+### Cambiado
+- `prod-migration.sh` aplica esta migración automáticamente via `alembic upgrade head` (sin pasos manuales en producción).
+
+---
+
+## [1.10.0] - 2026-04-26
+
+Herencia automática del `littleCard` (infobox) desde el group ancestro más cercano, para evitar replicación manual del config en cada hijo. Incluye corrección al bug del head fantasma de alembic que bloqueaba el upgrade tras el bootstrap.
+
+### Agregado
+- **Herencia automática de `littleCard` desde el ancestro `group`** (`run_refresh_layer_tree.py`): nueva función `_inherit_little_card` que, al construir el árbol del cache, propaga el `infobox_config` del group ancestro más cercano hacia los descendientes (`leaf` o `group`) que no tienen uno propio. Marca con `inheritedFrom: ancestor_id` para debugging. Permite editar el infobox UNA vez en el group y que todos los hijos lo hereden automáticamente sin replicación. Coordina con mariachi v0.26.0 que ofrece UI de herencia (banner verde "Heredando de X" + botón "Personalizar para esta capa"). Cero cambios necesarios en el visor mapalab.
 
 ### Corregido
-- **Bug del head fantasma de alembic** (`jobs/bootstrap/v14_schema.sql`):
-  El `INSERT ... ON CONFLICT DO NOTHING` insertaba `0003_metadata_stats` en cada corrida
-  del bootstrap, incluso cuando alembic ya estaba en `0005_map_shares`. Esto creaba dos
-  rows simultáneas en `mapalab.alembic_version_dataengine` y alembic interpretaba dos
-  heads activos, fallando con "Requested revision 0005_map_shares overlaps with other
-  requested revisions 0003_metadata_stats" en el siguiente `alembic upgrade head`.
-  Fix: usar `INSERT ... SELECT ... WHERE NOT EXISTS` para que el stamp del baseline
-  solo ocurra cuando la tabla está vacía (BD recién creada). En BDs ya migradas, no
-  toca nada.
-  Para BDs ya afectadas: `DELETE FROM mapalab.alembic_version_dataengine WHERE version_num = '0003_metadata_stats';`
-- **Orden bootstrap-v14.sh**: el `alembic upgrade head` se ejecuta ANTES del refresh
-  del layer_tree_cache (los modelos SQLAlchemy de jobs/ esperan columnas que agregan
-  las migraciones nuevas, ej. `mapalab.layers.slug` en 0004; sin esto el SELECT
-  fallaba con "column does not exist").
+- **Bug del head fantasma de alembic** (`jobs/bootstrap/v14_schema.sql`): el `INSERT ... ON CONFLICT DO NOTHING` insertaba `0003_metadata_stats` en cada corrida del bootstrap, incluso cuando alembic ya estaba en `0005_map_shares`. Esto creaba dos rows simultáneas en `mapalab.alembic_version_dataengine` y alembic interpretaba dos heads activos, fallando con `"Requested revision 0005_map_shares overlaps with other requested revisions 0003_metadata_stats"` en el siguiente `alembic upgrade head`. Fix: usar `INSERT ... SELECT ... WHERE NOT EXISTS` para que el stamp del baseline solo ocurra cuando la tabla está vacía (BD recién creada). En BDs ya migradas, no toca nada. Para BDs ya afectadas: `DELETE FROM mapalab.alembic_version_dataengine WHERE version_num = '0003_metadata_stats';`
+- **Orden en `bootstrap-v14.sh`**: el `alembic upgrade head` se ejecuta ANTES del refresh del `layer_tree_cache` (los modelos SQLAlchemy de `jobs/` esperan columnas que agregan las migraciones nuevas, ej. `mapalab.layers.slug` en 0004; sin esto el `SELECT` fallaba con `"column does not exist"`).
+
+---
+
+## [1.9.0] - 2026-04-24
+
+Persistencia de estado de mapa compartido (`map_shares`) con cleanup automático.
+
+### Agregado
+- **Migración alembic 0005** (`jobs/alembic/versions/20260424_0005_map_shares.py`): nueva tabla `mapalab.map_shares` para snapshots persistidos del estado del mapa (layers, order, visibility, opacity, filters, periodicity, loop, basemap, view). Indexada para cleanup sliding-window (`last_accessed_at`) y cleanup pinned (`pinned_until`).
+- **Job `run_cleanup_shares.py`** agregado al cron diario de `dataengine-jobs` a las 04:45: borra shares no-pinned con `last_accessed_at` mayor a 30 días y los pinned-expired (`pinned_until < now()`).
+- Nueva entrada en `jobs/crontab` para el cleanup diario.
+
+---
+
+## [1.8.0] - 2026-04-24
+
+`slug` público y aliases cortos para capas, base para URLs amigables y referencias estables.
+
+### Agregado
+- **Migración alembic 0004** (`jobs/alembic/versions/20260424_0004_layer_slugs_and_aliases.py`):
+  - Columna `slug` en `mapalab.layers` (unique, kebab-case, max 60 chars) validada por check constraint.
+  - Nueva tabla `mapalab.layer_aliases` para identificadores alternos cortos (ej. `esalud` → `establecimientos-salud`), también validados por check constraint.
+- `run_refresh_layer_tree.py` incluye `slug` y `aliases` en el JSON materializado del cache, para que el backend de mapalab los sirva en `/layers/tree`.
+
+### Notas de deploy
+Backwards compatible: `slug` es nullable. Mariachi admin lo poblará via su bulk slug generator; los IDs existentes siguen resolviendo hasta el cutover.
+
+---
+
+## [1.7.0] - 2026-04-24
+
+Migraciones de `mapalab` ahora viven en este repo. Antes residían en `mariachi/api/alembic/versions/dataengine/` y aplicarlas en producción requería SSH cross-host (mariachi en S1, dataengine en S4). Con este cambio `make prod-migration` es self-contained.
+
+### Agregado
+- **Alembic ownership** (`jobs/alembic/`): `env.py`, `alembic.ini`, `script.py.mako` y los 4 baselines (`0001_init_mapalab_schema`, `0002_layer_tree_cache`, `0003_layer_metadata_stats`) movidos desde `mariachi/api/alembic/versions/dataengine/` hacia este repo.
+- `alembic` agregado a `jobs/requirements.txt` y al container `dataengine-jobs`.
+- Nuevos targets: `make migrate` (corre `alembic upgrade head` dentro de `dataengine-jobs`) y `make migrate-status` (muestra heads/current).
+- `bootstrap-v14.sh` ahora corre `alembic upgrade head` automáticamente al final (idempotente).
+- `prod-migration.sh` se vuelve re-ejecutable: default `--skip-etl`; `--with-etl` opt-in para el pull legacy del Google Sheet.
+
+### Referencia
+Ver `gateway-hub/docs/ecosystem.md §7.3` (revisado 2026-04-24) para el contexto del split mariachi/dataengine en producción.
+
+---
 
 ## [1.6.0] - 2026-04-23
 
