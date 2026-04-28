@@ -6,6 +6,25 @@ El formato esta basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.
 y este proyecto se adhiere a [Versionado Semantico](https://semver.org/lang/es/). El versionado
 de `mapalab-dataengine` es independiente del de MapaLab.
 
+## [1.12.0] - 2026-04-28
+
+`/ontoy` ahora vive dentro del container `jobs` (un mini HTTP server con `http.server` stdlib, sin deps externas) en lugar de un servicio `version-api` con `nginx:alpine` dedicado. Mismo endpoint, mismo formato JSON, lectura del `version.json` en cada request → hot-update sin restart cuando bumpas `VERSION` y corres `make version-json`.
+
+### Cambiado
+- **`/ontoy` integrado en `jobs`** (`jobs/ontoy_server.py`): mini server con `http.server.ThreadingHTTPServer` que lee `/app/version.json` (bind-mount read-only) o fallback `/app/VERSION`. Cero deps Python adicionales (stdlib).
+- `jobs/entrypoint.sh`: arranca `ontoy_server.py` en background antes del `exec` de cron.
+- `docker-compose.yml`: el servicio `jobs` ahora expone `${VERSION_API_PORT:-8088}:8088`, monta `./VERSION` y `./version-api/html/version.json` read-only, y tiene healthcheck con `urllib.request` (sin nuevas deps).
+
+### Eliminado
+- Servicio `version-api` (`nginx:alpine`) — reemplazado por el endpoint embebido en `jobs`.
+- `version-api/nginx.conf` — ya no se usa (se conserva `version-api/html/` para el `version.json` generado por `make version-json`).
+
+### Notas
+- Ahorro real: −1 container, ~−15 MB RAM. Mismo comportamiento desde el cliente (`curl http://localhost:8088/ontoy`).
+- Convivencia con cron: el server HTTP corre en background como child del entrypoint; si `cron -f` (PID 1) muere, docker reinicia el container. Si el server HTTP muere, el healthcheck falla y docker reinicia.
+
+---
+
 ## [1.11.0] - 2026-04-27
 
 `icon_url` para temas: identidad visual configurable en cada nodo de tipo `tema` del árbol de capas.
