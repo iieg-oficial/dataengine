@@ -44,4 +44,26 @@ else
     psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -f "$FILEPATH"
 fi
 
+# pg_restore --no-acl no recrea GRANTs, asi que el rol mariachi_layers
+# queda sin permisos sobre mapalab.* tras un restore. Re-aplicamos los
+# GRANTs del Paso 3b de bootstrap-v14.sh. Idempotente; no-op si el rol o
+# el schema no existen (ej. cluster recien iniciado pre-bootstrap).
+psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -v ON_ERROR_STOP=0 <<SQL
+DO \$\$
+BEGIN
+    IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'mariachi_layers')
+       AND EXISTS (SELECT 1 FROM information_schema.schemata WHERE schema_name = 'mapalab') THEN
+        EXECUTE 'GRANT USAGE ON SCHEMA mapalab TO mariachi_layers';
+        EXECUTE 'GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA mapalab TO mariachi_layers';
+        EXECUTE 'GRANT USAGE, SELECT, UPDATE ON ALL SEQUENCES IN SCHEMA mapalab TO mariachi_layers';
+        EXECUTE format('ALTER DEFAULT PRIVILEGES FOR ROLE %I IN SCHEMA mapalab GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO mariachi_layers', current_user);
+        EXECUTE format('ALTER DEFAULT PRIVILEGES FOR ROLE %I IN SCHEMA mapalab GRANT USAGE, SELECT, UPDATE ON SEQUENCES TO mariachi_layers', current_user);
+        RAISE NOTICE 'GRANTs sobre mapalab.* re-aplicados a mariachi_layers';
+    ELSE
+        RAISE NOTICE 'Rol mariachi_layers o schema mapalab no existen; GRANTs omitidos';
+    END IF;
+END
+\$\$;
+SQL
+
 echo "Restauracion completada: $FILE"
