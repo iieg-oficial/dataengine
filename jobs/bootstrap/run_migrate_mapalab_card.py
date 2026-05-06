@@ -13,6 +13,25 @@ TRUE_VALUES = {'1', 'true', 't', 'yes', 'sí', 'si', 'y'}
 FALSE_VALUES = {'0', 'false', 'f', 'no', 'n'}
 
 
+WORKSPACE_RENAMES = {
+    'mundial': 'eventos',
+}
+
+LAYER_RENAMES = {
+    'mundial:sitios_interes': 'eventos:sitios_interes_direcciones',
+}
+
+
+def normalize_layer_key(layer_key: str) -> str:
+    if layer_key in LAYER_RENAMES:
+        return LAYER_RENAMES[layer_key]
+    if ':' in layer_key:
+        ws, name = layer_key.split(':', 1)
+        if ws in WORKSPACE_RENAMES:
+            return f'{WORKSPACE_RENAMES[ws]}:{name}'
+    return layer_key
+
+
 def parse_bool(value) -> bool:
     if value is None:
         return True
@@ -101,7 +120,10 @@ def main() -> int:
 
             for row in rows:
                 layer_key = clean(row['nombre_capa_geoserver'])
-                if not layer_key or layer_key in seen:
+                if not layer_key:
+                    continue
+                layer_key = normalize_layer_key(layer_key)
+                if layer_key in seen:
                     continue
                 seen.add(layer_key)
 

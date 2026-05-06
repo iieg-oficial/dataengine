@@ -6,6 +6,30 @@ El formato esta basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.
 y este proyecto se adhiere a [Versionado Semantico](https://semver.org/lang/es/). El versionado
 de `mapalab-dataengine` es independiente del de MapaLab.
 
+## [1.12.1] - 2026-05-06
+
+`run_migrate_mapalab_card.py` (paso 5 del bootstrap v1.4.0) ahora normaliza el `layer_key` cuando el Sheet de Google usó un nombre de workspace distinto al que GeoServer/`mapalab.workspaces` tienen registrado.
+
+### Cambiado
+
+- **Mapeo de renames in-flight** en `jobs/bootstrap/run_migrate_mapalab_card.py`:
+  - Workspace: `mundial` → `eventos` (todas las capas del mundial vivían bajo este alias en el Sheet, pero el workspace real en GeoServer es `eventos`).
+  - Layer especifico: `mundial:sitios_interes` → `eventos:sitios_interes_direcciones` (nombre de la capa en GeoServer agrega sufijo `_direcciones`).
+- Constantes `WORKSPACE_RENAMES` y `LAYER_RENAMES` + helper `normalize_layer_key`. Idempotente: si el `layer_key` ya viene en formato correcto pasa sin cambios.
+
+### Por qué
+
+Sin esto, `mapalab.layer_metadata` y `mapalab.layer_stats` quedaban con `layer_key = mundial:*`, pero los editores (mariachi, visor) buscan por `${workspaceAlias}:${geoserverLayer}` = `eventos:*`. Resultado: 11 metadatas "huérfanas" y los editores mostraban formularios vacíos para capas que sí tenían datos.
+
+### Notas operativas
+
+- Sin cambios en migración Alembic ni schema.
+- `--with-etl` o `--skip-etl` ambos aplican el rename al final (el migrador siempre corre).
+- Si el equipo del Sheet alguna vez corrige `mundial:` → `eventos:` en la fuente, los renames quedan no-ops (el `layer_key` ya viene correcto).
+- Para renames adicionales en el futuro (otros workspaces mal nombrados desde el Sheet), agregar al diccionario y volver a correr `make prod-migration`.
+
+---
+
 ## [1.12.0] - 2026-04-28
 
 `/ontoy` ahora vive dentro del container `jobs` (un mini HTTP server con `http.server` stdlib, sin deps externas) en lugar de un servicio `version-api` con `nginx:alpine` dedicado. Mismo endpoint, mismo formato JSON, lectura del `version.json` en cada request → hot-update sin restart cuando bumpas `VERSION` y corres `make version-json`.
