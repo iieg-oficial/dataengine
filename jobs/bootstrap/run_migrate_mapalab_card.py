@@ -109,6 +109,25 @@ def main() -> int:
     engine = create_engine(url)
     try:
         with engine.begin() as conn:
+            for old_ws in WORKSPACE_RENAMES:
+                conn.execute(
+                    text("DELETE FROM mapalab.layer_stats WHERE layer_key LIKE :p"),
+                    {'p': f'{old_ws}:%'},
+                )
+                conn.execute(
+                    text("DELETE FROM mapalab.layer_metadata WHERE workspace = :w"),
+                    {'w': old_ws},
+                )
+            for old_key in LAYER_RENAMES:
+                conn.execute(
+                    text("DELETE FROM mapalab.layer_stats WHERE layer_key = :k"),
+                    {'k': old_key},
+                )
+                conn.execute(
+                    text("DELETE FROM mapalab.layer_metadata WHERE layer_key = :k"),
+                    {'k': old_key},
+                )
+
             rows = conn.execute(text(
                 "SELECT * FROM public.mapalab_card WHERE nombre_capa_geoserver IS NOT NULL "
                 "AND nombre_capa_geoserver != ''"

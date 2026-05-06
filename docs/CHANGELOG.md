@@ -6,6 +6,17 @@ El formato esta basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.
 y este proyecto se adhiere a [Versionado Semantico](https://semver.org/lang/es/). El versionado
 de `mapalab-dataengine` es independiente del de MapaLab.
 
+## [1.12.2] - 2026-05-06
+
+Refuerzo del rename agregado en 1.12.1: el migrador ahora también limpia las filas viejas con `layer_key` en formato pre-rename antes de hacer el upsert. Sin esto, al correr `prod-migration` en un ambiente que ya tenía filas con `mundial:*`, las nuevas filas con `eventos:*` se insertaban por separado (PK distinta) y quedaban duplicadas.
+
+### Cambiado
+
+- `run_migrate_mapalab_card.py::main` hace `DELETE` previo en `mapalab.layer_stats` y `mapalab.layer_metadata` para cada `WORKSPACE_RENAMES` y `LAYER_RENAMES` configurado, en orden seguro respecto a la FK `layer_stats_layer_key_fkey`.
+- Idempotente: en ambientes limpios (sin filas viejas) los DELETE devuelven 0 rows y no afecta nada.
+
+---
+
 ## [1.12.1] - 2026-05-06
 
 `run_migrate_mapalab_card.py` (paso 5 del bootstrap v1.4.0) ahora normaliza el `layer_key` cuando el Sheet de Google usó un nombre de workspace distinto al que GeoServer/`mapalab.workspaces` tienen registrado.
