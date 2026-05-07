@@ -6,6 +6,18 @@ El formato esta basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.
 y este proyecto se adhiere a [Versionado Semantico](https://semver.org/lang/es/). El versionado
 de `mapalab-dataengine` es independiente del de MapaLab.
 
+## [1.13.0] - 2026-05-07
+
+Mientras el primer deploy a produccion no se haya completado, el Sheet de Google sigue siendo la fuente de verdad para `mapalab.layer_metadata`. Por eso `make prod-migration` vuelve a hacer pull del Sheet por default; el `--skip-etl` queda como opt-in para cuando se cierre el ciclo de testing y el Sheet se congele.
+
+### Cambiado
+
+- `scripts/prod-migration.sh`: `SKIP_ETL` default pasa de `1` a `0` (pull del Sheet activo por default). `--with-etl` deja de ser necesario; `--skip-etl` queda como opt-in.
+- `Makefile`: ayuda de `prod-migration` actualizada — default `with-etl`, override con `PROD_MIGRATION_FLAGS="--skip-etl"`.
+- Comentario de cabecera del script aclarado: revertir el default a `SKIP_ETL=1` tras el primer go-live a produccion.
+
+---
+
 ## [1.12.2] - 2026-05-06
 
 Refuerzo del rename agregado en 1.12.1: el migrador ahora también limpia las filas viejas con `layer_key` en formato pre-rename antes de hacer el upsert. Sin esto, al correr `prod-migration` en un ambiente que ya tenía filas con `mundial:*`, las nuevas filas con `eventos:*` se insertaban por separado (PK distinta) y quedaban duplicadas.

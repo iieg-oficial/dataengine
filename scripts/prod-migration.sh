@@ -2,10 +2,11 @@
 # Migracion idempotente de produccion: bootstrap baseline + alembic upgrade head.
 #
 # Hace en orden:
-#   A. (OPCIONAL, --with-etl) Pull final del Google Sheet -> public.mapalab_card
+#   A. (DEFAULT) Pull del Google Sheet -> public.mapalab_card
 #      (ETL legacy restaurado temporalmente desde git commit 1f70a88~1).
-#      Default: SKIP. El Sheet quedo congelado tras la migracion v1.4.0; correrlo
-#      ahora sobrescribe ediciones de mariachi.
+#      Default mientras estamos en testing: PULL. El Sheet sigue siendo fuente de
+#      verdad hasta el primer go-live a produccion. Tras ese deploy, congelar el
+#      Sheet y volver el default a SKIP_ETL=1.
 #   B. Bootstrap v1.4.0+: schema mapalab.*, seed de layers, migracion
 #      mapalab_card -> layer_metadata + layer_stats, alembic upgrade head.
 #
@@ -13,8 +14,8 @@
 # El paso B aplica TODAS las migraciones alembic pendientes (0004+, lo que sea).
 #
 # Uso:
-#   ./scripts/prod-migration.sh                     # bootstrap + alembic upgrade head (recomendado)
-#   ./scripts/prod-migration.sh --with-etl          # incluye pull del Sheet (RARO; sobrescribe mariachi)
+#   ./scripts/prod-migration.sh                     # pull Sheet + bootstrap + alembic (default mientras estamos en testing)
+#   ./scripts/prod-migration.sh --skip-etl          # omite pull del Sheet (post go-live a produccion)
 #   ./scripts/prod-migration.sh --dry-run           # no aplica cambios
 #   ./scripts/prod-migration.sh --layers-json /path # override del baseline JSON
 
@@ -24,7 +25,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 cd "$REPO_ROOT"
 
-SKIP_ETL=1
+SKIP_ETL=0
 DRY_RUN=0
 LAYERS_JSON="$REPO_ROOT/jobs/bootstrap/layers_export.json"
 
