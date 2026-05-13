@@ -6,6 +6,25 @@ El formato esta basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.
 y este proyecto se adhiere a [Versionado Semantico](https://semver.org/lang/es/). El versionado
 de `mapalab-dataengine` es independiente del de MapaLab.
 
+## [1.14.0] - 2026-05-13
+
+### Migracion `0007_symbol_catalog`: catalogo de simbolos para MapaLab
+
+Soporte de schema para el nuevo catalogo de simbolos administrable desde mariachi-admin, consumido por el panel de mediciones de MapaLab y el shape `point` del SLD editor.
+
+### Agregado
+
+- Tabla `mapalab.symbol_categories` — `(id, slug UNIQUE, name, icon, sort_order, created_at, updated_at)`.
+- Tabla `mapalab.symbols` — `(id, category_id FK CASCADE, kind CHECK('emoji'|'svg'|'image'), value TEXT, name, sort_order, image_object_key, png_object_key, created_at, updated_at)`. Index compuesto `(category_id, sort_order)`.
+- Seed inline en la migracion: 8 categorias (Caras, Gestos, Animales, Comida, Viajes, Objetos, Simbolos, Actividades) y ~980 emojis tomados de `mapalab/frontend/src/pages/maps/helpers/emojiCatalog.js`. Asi el primer despliegue tiene catalogo poblado sin pasos manuales.
+
+### Notas
+
+- La migracion se aplica automaticamente via `make prod-migration` (paso 5: `alembic upgrade head`). No requiere cambios en `prod-migration.sh` ni en `bootstrap-v14.sh`.
+- `mapalab/frontend` deja de usar `emojiCatalog.js` y consume el endpoint publico de mariachi `GET /api/mapalab/symbols/catalog`. El admin de mariachi opera contra estas tablas via `dataengine_db`.
+
+---
+
 ## [1.13.0] - 2026-05-07
 
 Mientras el primer deploy a produccion no se haya completado, el Sheet de Google sigue siendo la fuente de verdad para `mapalab.layer_metadata`. Por eso `make prod-migration` vuelve a hacer pull del Sheet por default; el `--skip-etl` queda como opt-in para cuando se cierre el ciclo de testing y el Sheet se congele.
