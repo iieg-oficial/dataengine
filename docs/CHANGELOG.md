@@ -6,6 +6,22 @@ El formato esta basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.
 y este proyecto se adhiere a [Versionado Semantico](https://semver.org/lang/es/). El versionado
 de `mapalab-dataengine` es independiente del de MapaLab.
 
+## [1.14.1] - 2026-05-13
+
+### Migracion `0008_symbol_catalog_excluir_baneados`: excluir emojis baneados del catalogo
+
+Limpieza del catalogo sembrado en `1.14.0` para excluir tres emojis no deseados (🖕, 💩, 💣). El catalogo se restablece correctamente al borrar volumenes y correr `alembic upgrade head`.
+
+### Cambiado
+
+- `jobs/alembic/versions/20260512_0007_symbol_catalog.py`: removido 🖕 del seed inline de la categoria `gestos`. En despliegues con volumenes recien creados ya no se inserta. 💩 y 💣 nunca estuvieron en el seed.
+
+### Agregado
+
+- `jobs/alembic/versions/20260513_0008_symbol_catalog_excluir_baneados.py`: migracion idempotente que ejecuta `DELETE FROM mapalab.symbols WHERE kind = 'emoji' AND value = ANY(:values)` con la lista `('🖕','💩','💣')`. Sirve para ambientes donde la `0007` ya se aplico con la lista vieja; en ambientes nuevos pasa sin tocar filas. `downgrade` es no-op (la lista de baneados no se restaura).
+
+---
+
 ## [1.14.0] - 2026-05-13
 
 ### Migracion `0007_symbol_catalog`: catalogo de simbolos para MapaLab
