@@ -62,8 +62,6 @@ if [ $SKIP_ETL -eq 0 ]; then
     : "${MAPALAB_CARD_GOOGLE_CREDENTIALS_PATH:?MAPALAB_CARD_GOOGLE_CREDENTIALS_PATH no esta en .env (o usa --skip-etl)}"
     : "${MAPALAB_CARD_GOOGLE_SHEET_URL:?MAPALAB_CARD_GOOGLE_SHEET_URL no esta en .env (o usa --skip-etl)}"
 
-    # MAPALAB_CARD_GOOGLE_CREDENTIALS_PATH es la ruta DENTRO del container (legacy
-    # usaba /app/<basename>). En el host vive en jobs/<basename>.
     CRED_BASENAME="$(basename "$MAPALAB_CARD_GOOGLE_CREDENTIALS_PATH")"
     CRED_HOST_PATH="$REPO_ROOT/jobs/$CRED_BASENAME"
     if [ ! -f "$CRED_HOST_PATH" ]; then
@@ -95,7 +93,6 @@ if [ $SKIP_ETL -eq 0 ]; then
         jobs/core \
         | tar -C "$SCRATCH_DIR" --strip-components=1 -xf -
 
-    # Silenciar logs ruidosos del ETL legacy (Len rows + Rows preview con sample).
     sed -i '/Logger.info(f"Len rows:/d; /Logger.info(f"Rows preview:/d' \
         "$SCRATCH_DIR/core/mapalab_card/actions/actbackup.py"
 
@@ -106,9 +103,6 @@ if [ $SKIP_ETL -eq 0 ]; then
     CONTAINER_CRED_PATH="/tmp/google-creds.json"
     docker cp "$CRED_HOST_PATH" "dataengine-jobs:$CONTAINER_CRED_PATH"
 
-    # Mapear env vars nuevas (DATAENGINE_DB_*) a las legacy (MAPALAB_CARD_DB_*)
-    # que el ETL espera. El container jobs usa DATAENGINE_DB_*, el ETL legacy
-    # usa MAPALAB_CARD_DB_*.
     if [ $DRY_RUN -eq 1 ]; then
         echo "  [dry-run] saltando ejecucion del ETL"
         ETL_CMD="echo '[dry-run] ETL skipped'"
@@ -118,16 +112,16 @@ if [ $SKIP_ETL -eq 0 ]; then
 
     docker compose exec -T \
         -e FORCE_LEGACY_ETL=1 \
-        -e MAPALAB_CARD_DB_USER="${DATAENGINE_DB_USER:-$POSTGRES_USER}" \
-        -e MAPALAB_CARD_DB_PASSWORD="${DATAENGINE_DB_PASSWORD:-$POSTGRES_PASSWORD}" \
-        -e MAPALAB_CARD_DB_HOST="${DATAENGINE_DB_HOST:-postgres-primary}" \
-        -e MAPALAB_CARD_DB_PORT="${DATAENGINE_DB_PORT:-5432}" \
-        -e MAPALAB_CARD_DB_NAME="${DATAENGINE_DB_NAME:-$POSTGRES_DB}" \
-        -e MAPALAB_CARD_DB_SSLMODE="${DATAENGINE_DB_SSLMODE:-require}" \
         -e MAPALAB_CARD_GOOGLE_CREDENTIALS_PATH="$CONTAINER_CRED_PATH" \
         -e MAPALAB_CARD_GOOGLE_SHEET_URL="$MAPALAB_CARD_GOOGLE_SHEET_URL" \
         jobs bash -c "
             set -e
+            export MAPALAB_CARD_DB_USER=\"\${DATAENGINE_DB_USER:-\$POSTGRES_USER}\"
+            export MAPALAB_CARD_DB_PASSWORD=\"\${DATAENGINE_DB_PASSWORD:-\$POSTGRES_PASSWORD}\"
+            export MAPALAB_CARD_DB_HOST=\"\${DATAENGINE_DB_HOST:-postgres-primary}\"
+            export MAPALAB_CARD_DB_PORT=\"\${DATAENGINE_DB_PORT:-5432}\"
+            export MAPALAB_CARD_DB_NAME=\"\${DATAENGINE_DB_NAME:-\$POSTGRES_DB}\"
+            export MAPALAB_CARD_DB_SSLMODE=\"\${DATAENGINE_DB_SSLMODE:-require}\"
             cd /tmp/legacy_etl
             pip install --no-cache-dir --quiet pandas==3.0.0 gspread==6.2.1 google-auth==2.48.0
             $ETL_CMD
