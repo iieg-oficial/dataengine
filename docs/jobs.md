@@ -14,7 +14,7 @@ Todos en UTC del contenedor (`cron -f`). Logs: `/var/log/cron.log` (tail con `ma
 
 ## Trigger manual
 
-Desde la raiz del repo (`/IIEG/mapalab-dataengine`):
+Desde la raiz del repo (`/IIEG/dataengine`):
 
 ```
 make refresh-periodicity

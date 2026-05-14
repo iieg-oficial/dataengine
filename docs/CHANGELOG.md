@@ -4,7 +4,17 @@ Todos los cambios notables del proyecto se documentan en este archivo.
 
 El formato esta basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/),
 y este proyecto se adhiere a [Versionado Semantico](https://semver.org/lang/es/). El versionado
-de `mapalab-dataengine` es independiente del de MapaLab.
+de `dataengine` es independiente del de MapaLab.
+
+## [1.14.2] - 2026-05-14
+
+### Renombrado del repositorio `mapalab-dataengine` → `dataengine`
+
+El repositorio se renombro a `dataengine`. Se actualizaron las referencias internas (rutas, `README.md`, scripts de bootstrap y docs de jobs) y el remote de git apunta ahora a `git@github.com:iieg-oficial/dataengine.git`.
+
+### Cambiado
+
+- `README.md`, `docs/jobs.md`, `jobs/README.md`, `jobs/bootstrap/v14_schema.sql`, `scripts/bootstrap-v14.sh`: referencias `mapalab-dataengine` → `dataengine`.
 
 ## [1.14.1] - 2026-05-13
 

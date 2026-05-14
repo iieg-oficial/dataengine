@@ -1,6 +1,6 @@
 -- FROZEN (2026-04-23): baseline de bootstrap del schema mapalab.* para v1.4.0.
 -- NO se modifica. Cambios futuros de schema van como migracion alembic en
--- mapalab-dataengine/jobs/alembic/versions/. Ver
+-- dataengine/jobs/alembic/versions/. Ver
 -- gateway-hub/docs/ecosystem.md seccion 7.3 (revisado 2026-04-24) para la
 -- politica de ownership. Tras aplicar este SQL, bootstrap-v14.sh corre
 -- `alembic upgrade head` en el container `jobs` para aplicar 0004+.

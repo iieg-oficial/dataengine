@@ -14,7 +14,7 @@ Cron corre en foreground (`cron -f`). Logs: `/var/log/cron.log`. Ver `make logs-
 
 ## Trigger manual
 
-Desde `/IIEG/mapalab-dataengine/`:
+Desde `/IIEG/dataengine/`:
 - `make refresh-periodicity`
 - `make refresh-layer-tree`
 - `make refresh-layer-stats`

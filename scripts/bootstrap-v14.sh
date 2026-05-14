@@ -232,7 +232,7 @@ fi
 
 echo
 echo "--- Aplicar migraciones alembic ---"
-# Politica (ecosystem §7.3 v2, 2026-04-24): el repo mapalab-dataengine es la
+# Politica (ecosystem §7.3 v2, 2026-04-24): el repo dataengine es la
 # fuente autoritativa de migraciones del schema mapalab.*. v14_schema.sql crea
 # el baseline 0003 y lo deja stampeado en mapalab.alembic_version_dataengine.
 # Aqui corremos `alembic upgrade head` para aplicar cualquier migracion
@@ -287,7 +287,7 @@ echo "          - mariachi_network_[dev]"
 echo "          - dataengine-network   # external: true"
 echo
 echo "    produccion (servers separados):"
-echo "      a) En mapalab-dataengine/.env:"
+echo "      a) En dataengine/.env:"
 echo "           ALLOWED_HOSTS=<ip-o-cidr-server-mariachi>"
 echo "         luego:  docker compose exec postgres-primary psql -U \$POSTGRES_USER \\"
 echo "                   -c \"SELECT pg_reload_conf();\""
@@ -296,7 +296,7 @@ echo
 echo " 4. Restart de mariachi-api para levantar el engine secundario:"
 echo "      cd /IIEG/mariachi && docker compose restart api"
 echo
-echo " 5. Verificar que alembic esta en head (desde mapalab-dataengine):"
+echo " 5. Verificar que alembic esta en head (desde dataengine):"
 echo "      docker compose exec jobs alembic current"
 echo "      docker compose exec jobs alembic history"
 echo
