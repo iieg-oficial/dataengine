@@ -3,7 +3,7 @@
 #
 # Hace en orden:
 #   A. (DEFAULT) Pull del Google Sheet -> public.mapalab_card
-#      (ETL legacy restaurado temporalmente desde git commit 1f70a88~1).
+#      (ETL legacy restaurado temporalmente desde el tag git legacy-etl-snapshot).
 #      Default mientras estamos en testing: PULL. El Sheet sigue siendo fuente de
 #      verdad hasta el primer go-live a produccion. Tras ese deploy, congelar el
 #      Sheet y volver el default a SKIP_ETL=1.
@@ -40,7 +40,7 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
-LEGACY_COMMIT="1f70a88~1"
+LEGACY_COMMIT="legacy-etl-snapshot"
 SCRATCH_DIR="$REPO_ROOT/jobs/_legacy_etl"
 
 _cleanup() {
