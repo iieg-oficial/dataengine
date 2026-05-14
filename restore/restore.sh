@@ -21,15 +21,23 @@ fi
 
 export PGPASSWORD="${POSTGRES_PASSWORD}"
 
-psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" \
-    -c "CREATE EXTENSION IF NOT EXISTS postgis; CREATE EXTENSION IF NOT EXISTS postgis_topology;"
+echo "Recreando base $POSTGRES_DB..."
+psql -U "$POSTGRES_USER" -d postgres -q -v ON_ERROR_STOP=1 <<SQL
+UPDATE pg_database SET datallowconn = false WHERE datname = '$POSTGRES_DB';
+SELECT pg_terminate_backend(pid) FROM pg_stat_activity
+ WHERE datname = '$POSTGRES_DB' AND pid <> pg_backend_pid();
+SQL
+psql -U "$POSTGRES_USER" -d postgres -v ON_ERROR_STOP=1 \
+    -c "DROP DATABASE IF EXISTS \"$POSTGRES_DB\" WITH (FORCE);"
+psql -U "$POSTGRES_USER" -d postgres -v ON_ERROR_STOP=1 \
+    -c "CREATE DATABASE \"$POSTGRES_DB\";"
 
 HEADER=$(od -A n -N 5 -t c "$FILEPATH" 2>/dev/null | tr -d ' \n')
 
 if echo "$HEADER" | grep -q "PGDMP"; then
     echo "Detectado: custom format"
     set +e
-    pg_restore $VERBOSE_FLAG -U "$POSTGRES_USER" -d "$POSTGRES_DB" --clean --if-exists --no-owner --no-acl "$FILEPATH"
+    pg_restore $VERBOSE_FLAG -U "$POSTGRES_USER" -d "$POSTGRES_DB" --no-owner --no-acl "$FILEPATH"
     RC=$?
     set -e
     if [ "$RC" -gt 1 ]; then
