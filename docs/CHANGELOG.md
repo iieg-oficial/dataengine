@@ -6,6 +6,22 @@ El formato esta basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.
 y este proyecto se adhiere a [Versionado Semantico](https://semver.org/lang/es/). El versionado
 de `dataengine` es independiente del de MapaLab.
 
+## [1.14.3] - 2026-05-14
+
+### `restore.sh`: recrear base destino antes de `pg_restore`
+
+`pg_restore --clean` hacia DROP plano (sin CASCADE) y fallaba cuando la extension postgis o los schemas del dump tenian objetos dependientes de un restore previo (e.g. tras correr `make restore` dos veces seguidas). El script ahora ejecuta `DROP DATABASE IF EXISTS` + `CREATE DATABASE` antes del `pg_restore`, garantizando un punto de partida limpio.
+
+#### Cambiado
+
+- **`scripts/restore.sh`**: bloque previo al `pg_restore` recrea la base destino. Las creds y el host se siguen tomando de `.env` / variables del container.
+
+#### Notas
+
+- El commit (`5d149dc`) ya estaba en `production`; esta entry se agrega retroactivamente para que `make up` deje de emitir el WARN `no se encontro entrada '## [1.14.3]'`.
+
+---
+
 ## [1.14.2] - 2026-05-14
 
 ### Renombrado del repositorio `mapalab-dataengine` → `dataengine`
