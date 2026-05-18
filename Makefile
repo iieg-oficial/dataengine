@@ -38,7 +38,7 @@ help:
 	@echo "                      Default: with-etl (pull del Sheet activo, fase de testing)."
 	@echo "                      Override:  make prod-migration PROD_MIGRATION_FLAGS=\"--skip-etl\""
 	@echo ""
-	@echo "  migrate             Aplicar migraciones alembic pendientes (idempotente)"
+	@echo "  migrate             Rebuild de imagen jobs + alembic upgrade head (idempotente)"
 	@echo "  migrate-status      Mostrar version actual + history de alembic"
 	@echo ""
 	@echo "  refresh-periodicity Refrescar tabla de periodicidad (SQL)"
@@ -156,6 +156,9 @@ prod-migration:
 	@./scripts/prod-migration.sh $(PROD_MIGRATION_FLAGS)
 
 migrate:
+	@echo "Sincronizando imagen de jobs con el repo..."
+	@docker compose build jobs
+	@docker compose up -d jobs
 	@echo "Aplicando migraciones alembic pendientes..."
 	@docker compose exec -T jobs alembic upgrade head
 	@echo "OK"

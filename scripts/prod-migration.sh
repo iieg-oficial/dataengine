@@ -82,6 +82,14 @@ echo "  Layers JSON:    $LAYERS_JSON"
 echo "================================================================"
 echo
 
+if [ $DRY_RUN -eq 0 ]; then
+    echo "=== Pre. Sincronizando imagen de jobs con el repo ==="
+    docker compose build jobs
+    docker compose up -d jobs
+    echo
+fi
+
+
 if [ $SKIP_ETL -eq 0 ]; then
     echo "=== A. Pull final del Google Sheet -> public.mapalab_card ==="
     echo "  Restaurando ETL legacy desde git ($LEGACY_COMMIT)..."
