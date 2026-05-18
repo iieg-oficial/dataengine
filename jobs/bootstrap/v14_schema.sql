@@ -126,12 +126,9 @@ CREATE TABLE IF NOT EXISTS mapalab.layer_stats (
 );
 
 CREATE TABLE IF NOT EXISTS mapalab.alembic_version_dataengine (
-    version_num VARCHAR(32) PRIMARY KEY
+    version_num VARCHAR(255) PRIMARY KEY
 );
 
--- Solo stampear el baseline 0003 si la tabla esta vacia. Si alembic ya avanzo
--- a 0004+, NO insertamos 0003 porque crearia un head fantasma (multi-row →
--- alembic upgrade head falla con "overlaps with other revisions").
 INSERT INTO mapalab.alembic_version_dataengine (version_num)
 SELECT '0003_metadata_stats'
 WHERE NOT EXISTS (SELECT 1 FROM mapalab.alembic_version_dataengine);

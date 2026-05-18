@@ -35,6 +35,27 @@ config.set_main_option("sqlalchemy.url", target_url)
 
 VERSION_TABLE = "alembic_version_dataengine"
 VERSION_TABLE_SCHEMA = "mapalab"
+VERSION_NUM_LENGTH = 255
+
+
+def _ensure_version_num_capacity(connection) -> None:
+    connection.exec_driver_sql(
+        f"""
+        DO $$
+        BEGIN
+            IF EXISTS (
+                SELECT 1 FROM information_schema.columns
+                WHERE table_schema = '{VERSION_TABLE_SCHEMA}'
+                  AND table_name = '{VERSION_TABLE}'
+                  AND column_name = 'version_num'
+                  AND character_maximum_length < {VERSION_NUM_LENGTH}
+            ) THEN
+                ALTER TABLE {VERSION_TABLE_SCHEMA}.{VERSION_TABLE}
+                    ALTER COLUMN version_num TYPE VARCHAR({VERSION_NUM_LENGTH});
+            END IF;
+        END $$;
+        """
+    )
 
 
 def run_migrations_offline() -> None:
@@ -59,6 +80,7 @@ def run_migrations_online() -> None:
     )
 
     with connectable.connect() as connection:
+        _ensure_version_num_capacity(connection)
         context.configure(
             connection=connection,
             target_metadata=None,
