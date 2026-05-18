@@ -23,6 +23,12 @@ make refresh-layer-stats
 make refresh-all           # los tres en orden
 make logs-jobs             # tail del log del cron
 make prod-migration        # orquesta ETL Sheet + schema + seed + migrate + stamp (antes era migrate-mapalab-card + bootstrap-v14)
+
+# ingesta ad-hoc de metadatos desde CSV (dependencias externas)
+make ingest-metadata DEP=<dep> SOURCE=<path|url>                       # dry-run
+make ingest-metadata DEP=<dep> SOURCE=<path|url> EXTRA='--apply'       # apply directo
+make ingest-metadata DEP=<dep> SOURCE=<path|url> EXTRA='--review --apply'  # review por columna
+make ingest-metadata DEP=<dep> SOURCE=<path|url> EXTRA='--plan-out /tmp/plan.json'  # plan editable
 ```
 
 Desde `/IIEG/mapalab/`: `make refresh-layer-tree` delega a este container si esta corriendo (fallback HTTP a `POST /layers/refresh-cache` del backend mapalab).
@@ -60,6 +66,12 @@ jobs/
 │   ├── v14_schema.sql
 │   ├── run_seed_layers.py
 │   └── run_migrate_mapalab_card.py
+├── ingest/                     # ingesta ad-hoc de metadatos desde CSV (v1.15.0+)
+│   ├── run_ingest_metadata.py  # CLI con modos plan/review/apply
+│   ├── reader.py               # CSV de archivo o URL
+│   ├── columns.py              # header esperado + coerciones + builders JSONB
+│   ├── planner.py              # diff vs DB, plan JSON serializable
+│   └── applier.py              # apply con optimistic locking (IS NOT DISTINCT FROM)
 └── core/                       # utilidades compartidas (logger, etc.)
 ```
 

@@ -1,6 +1,6 @@
 # Context
 
-Snapshot del estado del proyecto al 2026-04-22 (version actual: `1.5.0`). Este archivo es un mapa archivo → feature para referencia rapida y una lista de TODOs/limpiezas pendientes.
+Snapshot del estado del proyecto al 2026-05-18 (version actual: `1.15.0`). Este archivo es un mapa archivo → feature para referencia rapida y una lista de TODOs/limpiezas pendientes.
 
 ## TODOs / pendientes
 
@@ -64,6 +64,25 @@ Invocable desde `scripts/bootstrap-v14.sh` (paso 5) o directamente con `docker c
 **Alembic en mariachi es la fuente autoritativa** de DDL del schema `mapalab.*` hacia adelante. `jobs/bootstrap/v14_schema.sql` queda frozen como baseline de bootstrap de v1.4.0 — no se modifica. Cambios futuros (agregar columna, nueva tabla, index) entran como migracion alembic en `mariachi/api/alembic/versions/dataengine/`. Ver `gateway-hub/docs/ecosystem.md` seccion 7.3.
 
 Guardrail: `gateway-hub/scripts/check-model-drift.py` compara modelos SQLAlchemy de mapalab y mariachi y reporta drift de columnas.
+
+### Ingesta de metadatos desde CSV (1.15.0)
+
+Para cuando los metadatos vienen de dependencias externas (instituciones que
+mandan sus propias capas) en archivos planos, en vez de edicion manual desde
+mariachi.
+
+| Feature | Archivos |
+|---|---|
+| CLI orquestador (modos plan/review/apply) | `jobs/ingest/run_ingest_metadata.py` |
+| Reader CSV (archivo local o URL HTTP) | `jobs/ingest/reader.py` |
+| Header esperado + coerciones + builders JSONB | `jobs/ingest/columns.py` |
+| Planner (diff vs DB actual, plan JSON) | `jobs/ingest/planner.py` |
+| Applier (optimistic locking via `IS NOT DISTINCT FROM`) | `jobs/ingest/applier.py` |
+| Target make | `Makefile` → `ingest-metadata DEP=… SOURCE=… [EXTRA=…]` |
+
+Semantica: **merge non-null** (celdas vacias no borran), upsert por PK
+`layer_key`, audit en `updated_by = 'ingest:<dep>:<archivo>'`. Cero deps
+nuevas: stdlib + SQLAlchemy + psycopg2 (mismo set que `run_migrate_mapalab_card.py`).
 
 ### Bootstrap v1.4.0 MapaLab (1.5.0)
 

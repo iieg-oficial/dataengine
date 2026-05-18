@@ -6,6 +6,74 @@ El formato esta basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.
 y este proyecto se adhiere a [Versionado Semantico](https://semver.org/lang/es/). El versionado
 de `dataengine` es independiente del de MapaLab.
 
+## [1.15.0] - 2026-05-18
+
+### Ingesta masiva de metadatos a `mapalab.layer_metadata` desde CSV
+
+Nuevo flujo `make ingest-metadata` para que los metadatos de capas vengan de
+archivos CSV proporcionados por dependencias externas (instituciones que
+mandan sus propias capas). Reemplaza la edicion manual via mariachi-admin
+para cargas grandes y permite revision granular antes de aplicar.
+
+El flujo es: **plan -> review -> apply**. El planner compara cada fila del
+CSV contra `mapalab.layer_metadata` y arma un diff por columna; el applier
+ejecuta los upserts aprobados con _optimistic locking_ (`UPDATE ... WHERE
+col IS NOT DISTINCT FROM :expected_from`), de modo que ediciones hechas
+desde mariachi entre el `plan` y el `apply` se detectan como `conflict` y
+se saltean sin pisar.
+
+Semantica de upsert: **merge non-null** (celdas vacias en el CSV no borran
+datos existentes). Cada fila tocada queda con `updated_by = 'ingest:<dep>:<archivo>'`.
+
+### Agregado
+
+- **`jobs/ingest/`** (paquete nuevo, aislado de `bootstrap/` y `alembic/`):
+  - `reader.py`: lee CSV desde archivo local o URL HTTP (`utf-8-sig`).
+  - `columns.py`: header esperado (20 columnas planas, JSONB anidados via
+    sufijos: `fuentes_corto/largo/enlace`, `metodologia_texto/archivo_enlace`,
+    `metadato_txt/xlsx`), validacion de columnas desconocidas, coerciones
+    (`parse_bool`, `clean`, builders de JSONB).
+  - `planner.py`: `build_plan(conn, dependencia, source, rows)` calcula
+    insertos/updates/duplicados y devuelve plan JSON serializable. Cada
+    `update` lleva `diffs` por columna con `from`/`to`/`apply`.
+  - `applier.py`: `apply_plan(conn, plan)` ejecuta los cambios aprobados
+    con optimistic locking; reporta `inserts_applied`, `inserts_conflict`,
+    `updates_applied`, `updates_columns_changed`, `updates_conflict`,
+    `changes_skipped`.
+  - `run_ingest_metadata.py`: CLI con flags `--dependencia`, `--source`,
+    `--plan-out`, `--plan-in`, `--review`, `--apply`. Modos: dry-run,
+    plan-editable, review interactivo TTY, apply directo.
+- **`make ingest-metadata DEP=<dep> SOURCE=<path|url> [EXTRA=...]`**: target
+  wrapper. Si `SOURCE` es path local, hace `docker cp` al container antes
+  de invocar el script. Sin `--apply` corre dry-run.
+
+### Cambiado
+
+- **`jobs/bootstrap/v14_schema.sql:129`**: `mapalab.alembic_version_dataengine.version_num`
+  se crea como `VARCHAR(255)` (antes `VARCHAR(32)`). Default historico de
+  alembic se quedo corto cuando los revision ids descriptivos pasaron 32
+  chars (ej. `0008_symbol_catalog_excluir_baneados` = 36).
+- **`Makefile` target `migrate`** y **`scripts/prod-migration.sh`**: ahora
+  hacen `docker compose build jobs && up -d jobs` antes del `alembic upgrade
+  head`, evitando que migraciones nuevas queden silenciosamente ignoradas
+  por una imagen del container desactualizada respecto al repo.
+
+### Arreglado
+
+- **Crash de `make prod-migration` en `alembic upgrade head`** con
+  `psycopg2.errors.StringDataRightTruncation: value too long for type
+  character varying(32)` al intentar stampear `0008_symbol_catalog_excluir_baneados`
+  en la tabla de bookkeeping. El UPDATE del version_num al final de la
+  migracion crasheaba, revertia la transaccion y dejaba la DB en 0007.
+  - Fix en runtime: hook idempotente `_ensure_version_num_capacity` en
+    `jobs/alembic/env.py` que ejecuta `ALTER COLUMN ... TYPE VARCHAR(255)`
+    si detecta una tabla preexistente con limite menor. Protege ambientes
+    bootstrapped con la DDL vieja.
+  - Fix en bootstrap fresco: DDL en `v14_schema.sql` actualizada (ver
+    seccion Cambiado).
+
+---
+
 ## [1.14.3] - 2026-05-14
 
 ### `restore.sh`: recrear base destino antes de `pg_restore`

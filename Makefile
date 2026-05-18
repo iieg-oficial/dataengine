@@ -11,6 +11,7 @@ CRON_JOB    = $(CRON_MINUTE) $(CRON_HOUR) * * * cd $(PROJECT_DIR) && make card >
         cron-install cron-remove \
         refresh-periodicity refresh-layer-tree refresh-layer-stats refresh-all \
         check-periodicity prod-migration migrate migrate-status \
+        ingest-metadata \
         version-json
 
 help:
@@ -46,6 +47,11 @@ help:
 	@echo "  refresh-layer-stats Refrescar stats (numeralia) del catalogo"
 	@echo "  refresh-all         Ejecutar los tres refresh en orden"
 	@echo "  check-periodicity   Verificar si periodicidad esta al dia"
+	@echo ""
+	@echo "  ingest-metadata     Ingesta upsert de metadatos a layer_metadata desde CSV."
+	@echo "                      Uso: make ingest-metadata DEP=<dep> SOURCE=<path|url> [EXTRA=...]"
+	@echo "                      EXTRA: --apply | --review --apply | --plan-out /tmp/plan.json"
+	@echo "                      Sin --apply: dry-run (no toca DB). Sin DEP/SOURCE: imprime ayuda."
 	@echo ""
 	@echo "  cron-install    Instalar cron job (solo ENV=production)"
 	@echo "  cron-remove     Remover cron job"
@@ -194,3 +200,22 @@ endif
 cron-remove:
 	@( crontab -l 2>/dev/null | grep -v 'make card' | grep -v 'SHELL=/bin/bash' ) | crontab - || true
 	@echo "🛑 Cron job de ingesta removido"
+
+ingest-metadata:
+	@if [ -z "$(DEP)" ] || [ -z "$(SOURCE)" ]; then \
+		echo "Uso: make ingest-metadata DEP=<dependencia> SOURCE=<path|url> [EXTRA='--apply']"; \
+		echo "Ejemplos:"; \
+		echo "  make ingest-metadata DEP=sct SOURCE=/tmp/sct.csv"; \
+		echo "  make ingest-metadata DEP=sct SOURCE=/tmp/sct.csv EXTRA=--apply"; \
+		echo "  make ingest-metadata DEP=sct SOURCE=/tmp/sct.csv EXTRA='--review --apply'"; \
+		echo "  make ingest-metadata DEP=sct SOURCE=/tmp/sct.csv EXTRA='--plan-out /tmp/plan.json'"; \
+		exit 1; \
+	fi
+	@if echo "$(SOURCE)" | grep -qE "^https?://"; then \
+		docker compose exec -T jobs python ingest/run_ingest_metadata.py \
+			--dependencia "$(DEP)" --source "$(SOURCE)" $(EXTRA); \
+	else \
+		docker cp "$(SOURCE)" dataengine-jobs:/tmp/ingest_source.csv && \
+		docker compose exec -T jobs python ingest/run_ingest_metadata.py \
+			--dependencia "$(DEP)" --source /tmp/ingest_source.csv $(EXTRA); \
+	fi

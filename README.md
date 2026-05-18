@@ -1,6 +1,6 @@
 # dataengine
 
-**Version:** 1.14.2 ([changelog](docs/CHANGELOG.md))
+**Version:** 1.15.0 ([changelog](docs/CHANGELOG.md))
 
 Stack PostgreSQL para produccion: primary con SSL, pooler, respaldos automaticos con subida al Acervo de Objetos y un container de jobs periodicos sobre el schema `mapalab` (fuente de verdad de MapaLab v1.4.0+).
 
@@ -78,6 +78,11 @@ make refresh-layer-tree   # rebuild de mapalab.layer_tree_cache
 make refresh-layer-stats  # evalua stats_config de mapalab.layer_stats
 make refresh-all          # los 3 refresh en orden
 make check-periodicity    # verifica si la periodicidad esta al dia
+
+# ingesta ad-hoc de metadatos desde CSV (dependencias externas)
+make ingest-metadata DEP=<dep> SOURCE=<path|url>                      # dry-run
+make ingest-metadata DEP=<dep> SOURCE=<path|url> EXTRA='--apply'      # apply directo
+make ingest-metadata DEP=<dep> SOURCE=<path|url> EXTRA='--review --apply'  # review por columna en TTY
 
 # bootstrap v1.4.0 y migracion 1-shot
 make bootstrap-v14 LAYERS_JSON=...
