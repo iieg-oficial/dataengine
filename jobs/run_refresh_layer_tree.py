@@ -88,6 +88,7 @@ _LAYER_COLS = [
 def _fetch_layers(conn) -> list[dict]:
     rows = conn.execute(text(
         f"SELECT {', '.join(_LAYER_COLS)} FROM mapalab.layers "
+        "WHERE deleted_at IS NULL "
         "ORDER BY parent_id NULLS FIRST, sort_order, id"
     )).fetchall()
     return [dict(zip(_LAYER_COLS, r)) for r in rows]
@@ -111,7 +112,9 @@ def _fetch_initial_order(conn) -> list[str]:
 
 
 def _max_updated_at(conn) -> Optional[datetime]:
-    return conn.execute(text('SELECT max(updated_at) FROM mapalab.layers')).scalar()
+    return conn.execute(text(
+        'SELECT max(updated_at) FROM mapalab.layers WHERE deleted_at IS NULL'
+    )).scalar()
 
 
 def _layer_to_wms_config(layer: dict, ws_map: dict[str, dict]) -> Optional[dict]:

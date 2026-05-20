@@ -6,7 +6,19 @@ El formato esta basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.
 y este proyecto se adhiere a [Versionado Semantico](https://semver.org/lang/es/). El versionado
 de `dataengine` es independiente del de MapaLab.
 
-## [No publicado]
+## [1.17.0] - 2026-05-20
+
+### `mapalab.layers`: soft delete con `deleted_at` / `deleted_by`
+
+Para que MapaLab pueda archivar capas de forma reversible (con papelera y restore) en lugar de hard-delete, se agregan dos columnas y se filtran las archivadas del cache materializado del árbol.
+
+#### Agregado
+
+- **Migracion Alembic `0011_layer_deleted_at`**: agrega columnas `deleted_at TIMESTAMPTZ NULL` y `deleted_by VARCHAR(100) NULL` a `mapalab.layers`. Indices parciales `ix_layers_alive WHERE deleted_at IS NULL` (para queries del visor) y `ix_layers_deleted WHERE deleted_at IS NOT NULL` (para listar la papelera). Downgrade incluido.
+
+#### Cambiado
+
+- **`jobs/run_refresh_layer_tree.py`**: `_fetch_layers` y `_max_updated_at` filtran `deleted_at IS NULL`. El cron diario `run_refresh_layer_tree` y el refresh manual via `make refresh-layer-tree` ya no incluyen capas archivadas en `mapalab.layer_tree_cache`. Las capas archivadas desaparecen del visor en cuanto el cache se reconstruye.
 
 ### `mapalab.symbols`: columna `bucket_slug` y SVG como archivo
 
