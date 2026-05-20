@@ -81,6 +81,7 @@ _LAYER_COLS = [
     'has_municipio', 'has_direccion', 'municipio_field', 'direccion_field',
     'infobox_template', 'infobox_config',
     'icon_url',
+    'notice',
 ]
 
 
@@ -215,6 +216,10 @@ def _layer_to_node(layer: dict, ws_map: dict[str, dict], aliases: dict[str, list
 
     if layer.get('infobox_config') is not None:
         node['littleCard'] = layer['infobox_config']
+
+    notice = layer.get('notice')
+    if notice and isinstance(notice, dict) and notice.get('enabled'):
+        node['notice'] = notice
 
     return node
 

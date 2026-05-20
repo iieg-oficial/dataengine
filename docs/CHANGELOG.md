@@ -6,6 +6,53 @@ El formato esta basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.
 y este proyecto se adhiere a [Versionado Semantico](https://semver.org/lang/es/). El versionado
 de `dataengine` es independiente del de MapaLab.
 
+## [1.16.0] - 2026-05-20
+
+### Soporte para `notice` (mensaje configurable por capa)
+
+Para que MapaLab v1.29.0 pueda mostrar avisos contextuales sobre cada capa
+(anclados a punto del mapa o flotantes en pantalla, con variante banner,
+tamaños configurables, etc.), el schema y el builder del árbol incorporan
+un nuevo campo JSONB por capa.
+
+#### Agregado
+
+- **Migración Alembic `0009_layer_notice`** (`jobs/alembic/versions/20260519_0009_layer_notice.py`):
+  agrega columna `notice JSONB NULL` a `mapalab.layers`. Idempotente,
+  reversible (`downgrade` con `drop_column`). Entra automáticamente vía
+  `make prod-migration` (que ya corre `alembic upgrade head`).
+- **`run_refresh_layer_tree.py`**: el builder del `mapalab.layer_tree_cache`
+  ahora incluye `notice` en `_LAYER_COLS` y lo emite en cada nodo del JSON
+  cuando `notice.enabled === true`. Si el aviso está apagado se omite
+  silenciosamente para no inflar el payload del árbol.
+
+#### Shape del JSONB
+
+```json
+{
+  "enabled": true,
+  "title": "Datos preliminares",
+  "description": "...",
+  "icon": "/acervo/iieg/iconos/foo.svg",
+  "variant": "info|warning|neutral|banner",
+  "size": "small|medium|large",
+  "position": "top-center|bottom-center",
+  "dismissible": true,
+  "dismissPersistence": "permanent|reopen",
+  "anchorMode": "viewport|coord",
+  "anchorCoord": { "lon": ..., "lat": ... },
+  "arrowPosition": "top|right|bottom|left",
+  "zoomRange": { "min": ..., "max": ... },
+  "validFrom": null,
+  "validUntil": null,
+  "cta": { "label": "...", "url": "..." }
+}
+```
+
+Validación del shape vive en `mariachi >= 1.2.0` (Pydantic `LayerNotice`);
+`dataengine` lo almacena como JSONB sin validar para preservar el principio
+de single source of truth en mariachi.
+
 ## [1.15.0] - 2026-05-18
 
 ### Ingesta masiva de metadatos a `mapalab.layer_metadata` desde CSV
