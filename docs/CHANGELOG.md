@@ -6,6 +6,32 @@ El formato esta basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.
 y este proyecto se adhiere a [Versionado Semantico](https://semver.org/lang/es/). El versionado
 de `dataengine` es independiente del de MapaLab.
 
+## [No publicado]
+
+### `mapalab.symbols`: columna `bucket_slug` y SVG como archivo
+
+Para que mariachi pueda almacenar simbolos SVG como archivos (subidos al
+bucket `iieg` bajo el prefijo `leyendas/`) en lugar de XML inline en la
+columna `value`, el schema `mapalab.symbols` necesita declarar en que
+bucket de Acervo vive cada simbolo.
+
+#### Agregado
+
+- **Migracion Alembic `0010_symbol_bucket_slug`**
+  (`jobs/alembic/versions/20260520_0010_symbol_bucket_slug.py`): agrega
+  columna `bucket_slug VARCHAR(50) NOT NULL DEFAULT 'mapalab'` a
+  `mapalab.symbols`. Las filas existentes (emojis e imagenes en
+  `mapalab/simbologia/`) heredan el default. Los simbolos nuevos
+  `kind='svg'` se crean con `bucket_slug='iieg'` y `image_object_key`
+  bajo `leyendas/`.
+
+#### Limpieza
+
+- La misma migracion borra entradas legacy con `kind='svg'` y
+  `image_object_key IS NULL` (modalidad inline XML que `_apply_sld`
+  rechazaba y el SymbolPicker de mariachi deshabilitaba). Idempotente:
+  si no hay entradas asi, no toca nada.
+
 ## [1.16.0] - 2026-05-20
 
 ### Soporte para `notice` (mensaje configurable por capa)
