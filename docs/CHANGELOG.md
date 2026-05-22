@@ -6,6 +6,30 @@ El formato esta basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.
 y este proyecto se adhiere a [Versionado Semantico](https://semver.org/lang/es/). El versionado
 de `dataengine` es independiente del de MapaLab.
 
+## [1.18.0] - 2026-05-22
+
+### `mapalab.bulk_ingest_plans`: persistencia de planes para ingesta masiva
+
+Para soportar la nueva feature de **ingesta masiva de metadatos** en mariachi (subir CSV/XLSX → previsualizar plan con diff por capa → aplicar), se agrega una tabla que guarda el plan generado entre el `preview` y el `apply`.
+
+#### Agregado
+
+- **Migracion Alembic `0012_bulk_ingest_plans`** (`jobs/alembic/versions/20260521_0012_bulk_ingest_plans.py`): nueva tabla `mapalab.bulk_ingest_plans` con:
+  - `id UUID PRIMARY KEY` — generado app-side (mariachi).
+  - `created_at TIMESTAMPTZ`, `created_by VARCHAR(255)` — audit del usuario que subio el archivo.
+  - `dependencia VARCHAR(100)`, `source_filename VARCHAR(500)`, `source_object_key VARCHAR(500)` — origen del archivo (este ultimo apunta al bucket privado `mariachi` en Acervo).
+  - `status VARCHAR(20) CHECK ('pending','applied','cancelled','expired')`.
+  - `plan_json JSONB`, `column_mapping JSONB` — plan completo + mapeo de columnas usado (audit).
+  - `applied_at`, `applied_by`, `expires_at TIMESTAMPTZ` — TTL de 24h.
+  - Indices parciales `ix_bulk_ingest_plans_pending (created_by, created_at DESC) WHERE status='pending'` y `ix_bulk_ingest_plans_expiry (expires_at) WHERE status='pending'`.
+
+La logica de `build_plan` (diff vs DB), `apply_plan` (optimistic locking con `IS NOT DISTINCT FROM`) y el parser CSV/XLSX viven en mariachi (`api/app/services/bulk_ingest_*.py`). Esta tabla es solo el storage del plan.
+
+#### Operacional
+
+- Aplicar en dev/staging/prod: `make migrate` (o `docker compose exec jobs alembic upgrade head`).
+- Sin downtime: tabla nueva, sin alterar tablas existentes.
+
 ## [1.17.0] - 2026-05-20
 
 ### `mapalab.layers`: soft delete con `deleted_at` / `deleted_by`
