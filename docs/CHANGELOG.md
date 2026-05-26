@@ -6,6 +6,48 @@ El formato esta basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.
 y este proyecto se adhiere a [Versionado Semantico](https://semver.org/lang/es/). El versionado
 de `dataengine` es independiente del de MapaLab.
 
+## [1.20.0] - 2026-05-26
+
+### Agregado: columna `municipio_field_type` para metadata de filtro por municipio
+
+Habilita el filtrado CQL por capa en el modo "Vista por municipio" del visor (`mapalab` 1.50.0). La metadata `mapalab.layers.has_municipio + municipio_field` ya existía pero faltaba distinguir si el valor del campo es una clave INEGI (5 dígitos, ej. `14039`) o un nombre (ej. `Guadalajara`). Sin este dato el frontend no sabe qué valores meter en la cláusula `IN`.
+
+#### Agregado
+
+- **Migración Alembic `0017_layer_municipio_field_type`** (`jobs/alembic/versions/20260526_0017_layer_municipio_field_type.py`): `ALTER TABLE mapalab.layers ADD COLUMN municipio_field_type varchar(20) NULL`. Valores esperados: `clave` | `nombre` | NULL. Sin default — el admin elige según el contenido real de la columna referenciada por `municipio_field`.
+
+#### Coordinación con otros repos
+
+- **mapalab/backend** (`1.30.0`): `_layer_to_search_meta` ya expone `searchMeta.municipioFieldType` en el JSON del árbol. También agrega `_inherit_municipio_meta` que propaga la metadata desde un `group` hacia sus descendientes (un admin configura una vez en el group y aplica a todas las propiedades hijas).
+- **mariachi/api** (`1.18.0`): `LayerBase` y `LayerUpdate` en `schemas/layer.py` aceptan `municipio_field_type`; `models/layer.py` mapea la columna.
+- **mariachi/admin** (`1.18.0`): nuevo componente `MunicipioFieldPicker` con dropdown de columnas de la tabla (vía `/geoserver/workspaces/{alias}/layers/{layer}/fields?include_samples=true`) y auto-detección de tipo según muestras.
+
+---
+
+## [1.19.0] - 2026-05-26
+
+### Agregado: job `run_dump_layers_csv.py` (cache de descargas en Acervo)
+
+Para descargar la presión del backend de MapaLab en producción al servir CSVs de capas (saturaba el bucket superior del histograma `http_request_duration_seconds` con valores >10s, mide hasta el cierre del response), se pre-generan los CSVs nocturnamente y se suben a Acervo. El backend redirige (`307`) a la URL pública de Acervo cuando hay un dump fresco; si no, cae a streaming on-the-fly (cambio independiente en `mapalab/backend` con asyncpg).
+
+En GCP staging el job es opcional: si `AO_BUCKET_MAPALAB` no está seteada, hace skip con `return 0` y todas las descargas siguen al vuelo (el almacenamiento en GCP es limitado y los recursos son temporales).
+
+#### Agregado
+
+- **Migración Alembic `0016_layer_downloads`** (`jobs/alembic/versions/20260526_0016_layer_downloads.py`): nueva tabla `mapalab.layer_downloads(layer_key TEXT PK, db_schema, db_table, object_key, size_bytes BIGINT, row_count BIGINT, generated_at TIMESTAMPTZ)` con índice por `generated_at DESC`.
+- **Job `jobs/run_dump_layers_csv.py`**: itera capas con `downloadable=true` y `layer_name_db` resuelto en `mapalab.layer_metadata`; para cada una hace `COPY (SELECT * FROM schema.table) TO STDOUT WITH CSV HEADER`, comprime on-the-fly con `gzip` (level 6) a `tempfile.NamedTemporaryFile`, sube a `s3://${MAPALAB_AO_BUCKET}/downloads/{schema}/{table}.csv.gz` con `ContentType=text/csv` y `ContentEncoding=gzip` vía `s3.upload_fileobj` (multipart automático), y upserta el registro en `mapalab.layer_downloads`. Skip si el blob comprimido pesa >2 GB. El uso de tempfile en disco (no `BytesIO` en RAM) permite procesar tablas grandes — verificado en local con tablas que comprimen a >1 GB (e.g. `economia.trabajadores_asegurados` con 17 000 filas pesa ~1 GB en gzip por incluir geometrías cruzadas).
+- **`jobs/crontab`**: nueva entry diaria a las 05:00 UTC (`0 5 * * *`). El refresh de municipios se mueve a las 06:00 UTC (sigue siendo mensual el día 1) para no colisionar.
+- **`jobs/requirements.txt`**: `boto3==1.35.49`.
+- **`jobs/entrypoint.sh`**: el `printenv` que escribe `/etc/environment` para cron ahora incluye también las variables `AO_*` y `MAPALAB_AO_*` (antes solo `DATAENGINE_*`). Sin este cambio cron no vería las credenciales y el job fallaría con "Acervo/mapalab no configurado".
+- **`docker-compose.yml`**: el servicio `jobs` ahora recibe `AO_ENDPOINT`, `MAPALAB_AO_BUCKET`, `MAPALAB_AO_ACCESS_KEY`, `MAPALAB_AO_SECRET_KEY` (credenciales del usuario `mapalab-user` de Acervo, separadas de las `AO_*` que usa `pg-backup` para subir backups al bucket `dataengine`). En local agrego `extra_hosts: host.docker.internal:host-gateway` al servicio `jobs` para que pueda alcanzar `acervo-seaweedfs:8333` cuando `AO_ENDPOINT=http://host.docker.internal:8333` (single-VM con todos los compose separados). En producción `AO_ENDPOINT` es URL pública con DNS resoluble, así que no necesita este hack.
+- **`.env.example`**: documenta `MAPALAB_AO_BUCKET=mapalab`, `MAPALAB_AO_ACCESS_KEY`, `MAPALAB_AO_SECRET_KEY` como nuevas variables.
+
+#### Por qué minor
+
+Nueva tabla en schema `mapalab`, nuevo job en el cron, nueva dependencia (`boto3`) y nuevas env vars opcionales. Compatible hacia atrás: el endpoint de MapaLab funciona idéntico aunque la tabla esté vacía (cae a streaming on-the-fly).
+
+---
+
 ## [1.18.0] - 2026-05-22
 
 ### `mapalab.bulk_ingest_plans`: persistencia de planes para ingesta masiva

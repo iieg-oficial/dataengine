@@ -5,3 +5,5 @@ PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 0 4 * * * root cd /app && /usr/local/bin/python run_refresh_layer_tree.py >> /var/log/cron.log 2>&1
 30 4 * * * root cd /app && /usr/local/bin/python run_refresh_layer_stats.py >> /var/log/cron.log 2>&1
 45 4 * * * root cd /app && /usr/local/bin/python run_cleanup_shares.py >> /var/log/cron.log 2>&1
+0 5 * * * root cd /app && /usr/local/bin/python run_dump_layers_csv.py >> /var/log/cron.log 2>&1
+0 6 1 * * root cd /app && /usr/local/bin/python run_refresh_municipios.py >> /var/log/cron.log 2>&1
