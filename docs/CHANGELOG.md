@@ -19,8 +19,8 @@ Habilita el filtrado CQL por capa en el modo "Vista por municipio" del visor (`m
 #### Coordinación con otros repos
 
 - **mapalab/backend** (`1.30.0`): `_layer_to_search_meta` ya expone `searchMeta.municipioFieldType` en el JSON del árbol. También agrega `_inherit_municipio_meta` que propaga la metadata desde un `group` hacia sus descendientes (un admin configura una vez en el group y aplica a todas las propiedades hijas).
-- **mariachi/api** (`1.18.0`): `LayerBase` y `LayerUpdate` en `schemas/layer.py` aceptan `municipio_field_type`; `models/layer.py` mapea la columna.
-- **mariachi/admin** (`1.18.0`): nuevo componente `MunicipioFieldPicker` con dropdown de columnas de la tabla (vía `/geoserver/workspaces/{alias}/layers/{layer}/fields?include_samples=true`) y auto-detección de tipo según muestras.
+- **mariachi/api** (`1.19.0`): `LayerBase` y `LayerUpdate` en `schemas/layer.py` aceptan `municipio_field_type`; `models/layer.py` mapea la columna.
+- **mariachi/admin** (`1.19.0`): nuevo componente `MunicipioFieldPicker` con dropdown de columnas de la tabla (vía `/geoserver/workspaces/{alias}/layers/{layer}/fields?include_samples=true`) y auto-detección de tipo según muestras.
 
 ---
 
