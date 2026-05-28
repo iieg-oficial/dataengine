@@ -9,7 +9,7 @@ CRON_JOB    = $(CRON_MINUTE) $(CRON_HOUR) * * * cd $(PROJECT_DIR) && make card >
 .PHONY: help up down restart ps logs logs-primary logs-backup logs-jobs \
         shell backup restore restore-local clean build certs \
         cron-install cron-remove \
-        refresh-periodicity refresh-layer-tree refresh-layer-stats refresh-all \
+        refresh-periodicity refresh-layer-tree refresh-layer-stats refresh-municipios refresh-all \
         check-periodicity prod-migration migrate migrate-status \
         ingest-metadata \
         version-json
@@ -45,6 +45,7 @@ help:
 	@echo "  refresh-periodicity Refrescar tabla de periodicidad (SQL)"
 	@echo "  refresh-layer-tree  Refrescar cache del arbol de capas MapaLab"
 	@echo "  refresh-layer-stats Refrescar stats (numeralia) del catalogo"
+	@echo "  refresh-municipios  Refrescar MV mapalab.municipios desde mapa_base"
 	@echo "  refresh-all         Ejecutar los tres refresh en orden"
 	@echo "  check-periodicity   Verificar si periodicidad esta al dia"
 	@echo ""
@@ -155,7 +156,12 @@ refresh-layer-stats:
 	@docker compose exec -T jobs python run_refresh_layer_stats.py
 	@echo "OK"
 
-refresh-all: refresh-periodicity refresh-layer-tree refresh-layer-stats
+refresh-municipios:
+	@echo "Refrescando mapalab.municipios (MV de IIEG + INEGI)..."
+	@docker compose exec -T jobs python run_refresh_municipios.py
+	@echo "OK"
+
+refresh-all: refresh-periodicity refresh-layer-tree refresh-layer-stats refresh-municipios
 	@echo "Todo refresh completado"
 
 prod-migration:

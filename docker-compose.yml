@@ -97,6 +97,10 @@ services:
       DATAENGINE_DB_PORT: "5432"
       DATAENGINE_DB_NAME: ${POSTGRES_DB}
       DATAENGINE_DB_SSLMODE: require
+      AO_ENDPOINT: ${AO_ENDPOINT}
+      MAPALAB_AO_BUCKET: ${MAPALAB_AO_BUCKET}
+      MAPALAB_AO_ACCESS_KEY: ${MAPALAB_AO_ACCESS_KEY}
+      MAPALAB_AO_SECRET_KEY: ${MAPALAB_AO_SECRET_KEY}
     depends_on:
       postgres-primary:
         condition: service_healthy
@@ -105,6 +109,8 @@ services:
       interval: 30s
       timeout: 5s
       retries: 3
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     networks:
       - db-network
 

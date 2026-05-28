@@ -10,3 +10,6 @@ python-dotenv==1.2.1
 
 # Logging
 rich==14.3.2
+
+# S3 (Acervo / SeaweedFS) — usado por run_dump_layers_csv.py
+boto3==1.35.49
