@@ -53,6 +53,8 @@ services:
     depends_on:
       postgres-primary:
         condition: service_healthy
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     networks:
       - db-network
 
