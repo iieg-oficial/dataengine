@@ -6,6 +6,23 @@ El formato esta basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.
 y este proyecto se adhiere a [Versionado Semantico](https://semver.org/lang/es/). El versionado
 de `dataengine` es independiente del de MapaLab.
 
+## [1.21.0] - 2026-06-08
+
+### Agregado: columna `icon_overrides` para iconos por estado en temas
+
+Permite que el admin de mariachi defina iconos distintos para cada estado visual de un tema del sider (normal / hover). El visor MapaLab usa esta columna para renderizar el icono correspondiente según si el sider está colapsado, expandido o tiene capas activas.
+
+#### Agregado
+
+- **Migración Alembic `0018_layer_icon_overrides`** (`jobs/alembic/versions/20260608_0018_layer_icon_overrides.py`): `ALTER TABLE mapalab.layers ADD COLUMN icon_overrides jsonb NULL`. Sin default — el admin define los overrides por estado.
+
+#### Coordinación con otros repos
+
+- **mariachi/api** (`1.33.0`): `LayerBase` y `LayerUpdate` en `schemas/layer.py` aceptan `icon_overrides` con validación `to_relative` por valor; `models/layer.py` mapea la columna.
+- **mariachi/admin** (`1.33.0`): `TemaIconField` reescrito con segmentos normal/hover y preview por estado.
+- **mapalab/backend** (`1.72.0`): `layer_tree_service.py` expone `iconOverrides` en el JSON del árbol con resolución a `/acervo/...`.
+- **mapalab/frontend** (`1.74.0`): `MenuButton` usa `iconOverrides?.[iconState]` con fallback a `imageUrl` → `Icon`.
+
 ## [1.20.0] - 2026-05-26
 
 ### Agregado: columna `municipio_field_type` para metadata de filtro por municipio
