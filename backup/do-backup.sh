@@ -27,7 +27,7 @@ LAST_LINE=0
 
 printf "\n  Generando backup...\n\n"
 
-docker compose exec -T -e DEBUG=$DEBUG pg-backup /scripts/backup.sh > "$LOGFILE" 2>&1 &
+docker compose exec -T -e DEBUG=$DEBUG -e BACKUP_UID=$(id -u) -e BACKUP_GID=$(id -g) pg-backup /scripts/backup.sh > "$LOGFILE" 2>&1 &
 DOCKER_PID=$!
 
 flush_log() {

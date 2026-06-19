@@ -29,6 +29,10 @@ rm -f ~/.pgpass
 
 chmod 600 "$FILEPATH"
 
+if [ -n "${BACKUP_UID}" ] && [ -n "${BACKUP_GID}" ]; then
+    chown "${BACKUP_UID}:${BACKUP_GID}" "$FILEPATH"
+fi
+
 echo "Backup created: $FILEPATH"
 
 /scripts/upload-ao.sh "$FILEPATH" "$FILENAME" || true

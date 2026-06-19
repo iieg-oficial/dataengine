@@ -47,6 +47,8 @@ services:
       AO_BUCKET: ${AO_BUCKET}
       AO_ACCESS_KEY: ${AO_ACCESS_KEY}
       AO_SECRET_KEY: ${AO_SECRET_KEY}
+      BACKUP_UID: ${BACKUP_UID}
+      BACKUP_GID: ${BACKUP_GID}
     volumes:
       - ${BACKUP_DATA}:/backups
       - ./postgres/certs:/certs:ro

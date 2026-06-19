@@ -6,6 +6,26 @@ El formato esta basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.
 y este proyecto se adhiere a [Versionado Semantico](https://semver.org/lang/es/). El versionado
 de `dataengine` es independiente del de MapaLab.
 
+## [1.21.1] - 2026-06-19
+
+### `pg-backup`: archivos de respaldo con dueño del host (no `root`)
+
+El contenedor `pg-backup` corre como `root` (lo requieren `crond` y `pg_dump`), por lo que los `.sql.gz` escritos en el bind-mount `/backups` salían como `root:root` en el host. Eso complicaba copiarlos o moverlos a otros servidores sin `sudo`. Ahora el archivo se reasigna al UID/GID del usuario tras generarse.
+
+#### Cambiado
+
+- **`backup/scripts/backup.sh`**: tras el `chmod 600`, si `BACKUP_UID` y `BACKUP_GID` están definidos hace `chown ${BACKUP_UID}:${BACKUP_GID}` al archivo. El contenedor sigue corriendo como `root`, solo cambia el dueño del resultado.
+- **`backup/do-backup.sh`**: el backup manual (`make backup`) pasa el UID/GID real de quien ejecuta la orden (`id -u`/`id -g`) al `docker compose exec`.
+- **`docker-compose.yml`**: el servicio `pg-backup` recibe `BACKUP_UID` y `BACKUP_GID` desde el `.env` para que los backups del cron también queden con el dueño correcto.
+- **`.env.example`**: documenta `BACKUP_UID=1000` y `BACKUP_GID=1000`.
+
+#### Notas
+
+- Para que el cron tome las nuevas variables hay que recrear el contenedor: `docker compose up -d pg-backup`.
+- Los backups ya existentes siguen siendo `root`; normalizar con `chown ${BACKUP_UID}:${BACKUP_GID}` una vez si se requiere.
+
+---
+
 ## [1.21.0] - 2026-06-08
 
 ### Agregado: columna `icon_overrides` para iconos por estado en temas
