@@ -80,8 +80,9 @@ _LAYER_COLS = [
     'search_tags', 'searchable_fields',
     'has_municipio', 'has_direccion', 'municipio_field', 'direccion_field',
     'infobox_template', 'infobox_config',
-    'icon_url',
-    'notice',
+    'icon_url', 'icon_overrides',
+    'notice', 'badge',
+    'highlight_color', 'highlight_shape',
 ]
 
 
@@ -115,6 +116,14 @@ def _max_updated_at(conn) -> Optional[datetime]:
     return conn.execute(text(
         'SELECT max(updated_at) FROM mapalab.layers WHERE deleted_at IS NULL'
     )).scalar()
+
+
+def _resolve_acervo_icon(raw: Optional[str]) -> Optional[str]:
+    if not raw:
+        return None
+    if raw.startswith('/acervo/') or raw.startswith('/api/') or '://' in raw:
+        return raw
+    return f'/acervo/{raw.lstrip("/")}'
 
 
 def _layer_to_wms_config(layer: dict, ws_map: dict[str, dict]) -> Optional[dict]:
@@ -190,7 +199,12 @@ def _layer_to_node(layer: dict, ws_map: dict[str, dict], aliases: dict[str, list
         node['forceGroup'] = True
 
     if layer['node_type'] == 'tema' and layer.get('icon_url'):
-        node['iconUrl'] = layer['icon_url']
+        node['iconUrl'] = _resolve_acervo_icon(layer['icon_url'])
+
+    if layer['node_type'] == 'tema' and isinstance(layer.get('icon_overrides'), dict):
+        node['iconOverrides'] = {
+            k: _resolve_acervo_icon(v) for k, v in layer['icon_overrides'].items()
+        }
 
     if layer.get('hidden_in_menu'):
         node['hiddenInMenu'] = True
@@ -223,6 +237,16 @@ def _layer_to_node(layer: dict, ws_map: dict[str, dict], aliases: dict[str, list
     notice = layer.get('notice')
     if notice and isinstance(notice, dict) and notice.get('enabled'):
         node['notice'] = notice
+
+    badge = layer.get('badge')
+    if badge and isinstance(badge, dict) and badge.get('enabled'):
+        node['badge'] = badge
+
+    if layer.get('highlight_color'):
+        node['highlightColor'] = layer['highlight_color']
+
+    if layer.get('highlight_shape'):
+        node['highlightShape'] = layer['highlight_shape']
 
     return node
 

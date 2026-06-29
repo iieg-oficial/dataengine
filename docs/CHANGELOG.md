@@ -6,6 +6,19 @@ El formato esta basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.
 y este proyecto se adhiere a [Versionado Semantico](https://semver.org/lang/es/). El versionado
 de `dataengine` es independiente del de MapaLab.
 
+## [1.22.1] - 2026-06-29
+
+### `run_refresh_layer_tree.py`: serializar highlight, badge e icon_overrides
+
+El cron de las 04:00 que reconstruye `mapalab.layer_tree_cache` es una reimplementación standalone del serializador del backend mapalab (`_layer_to_dict`) y se había desincronizado: su `SELECT` y su builder no emitían varios campos del nodo que el backend sí. Cada noche sobrescribía el caché con un árbol sin esos campos, así que la configuración hecha en el editor de Mariachi "desaparecía" del visor al día siguiente (detectado con capas marcadas "Sin resaltar" que seguían resaltándose).
+
+#### Corregido
+
+- **`jobs/run_refresh_layer_tree.py`**: se agregan al `_LAYER_COLS` y al nodo serializado `highlight_color`/`highlight_shape` (resaltado al hacer clic), `badge` (gated en `enabled`) e `icon_overrides` (iconos por estado en temas), igualando a `backend/app/services/layer_tree_service.py::_layer_to_dict`. Se replica además el resolver `_resolve_acervo_icon` para normalizar rutas de `iconUrl`/`iconOverrides`.
+- Documentado en `docs/jobs.md` que este script duplica el serializador del backend y ambos deben mantenerse en sync.
+
+---
+
 ## [1.22.0] - 2026-06-29
 
 ### Índice espacial de `economia.cultivos` como migración Alembic
