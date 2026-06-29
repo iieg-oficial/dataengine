@@ -6,6 +6,26 @@ El formato esta basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.
 y este proyecto se adhiere a [Versionado Semantico](https://semver.org/lang/es/). El versionado
 de `dataengine` es independiente del de MapaLab.
 
+## [1.22.0] - 2026-06-29
+
+### Índice espacial de `economia.cultivos` como migración Alembic
+
+GeoServer necesita lecturas WMS/WFS rápidas sobre `economia.cultivos` (consultas por bounding box). Hasta ahora el índice GiST + `CLUSTER` se reconstruía desde el repo `geoserver` con un script que corría `docker exec` contra `dataengine-primary` en cada arranque — patrón que asumía colocalidad de contenedores y por tanto no funcionaba en producción (PostGIS en servidor dedicado).
+
+La optimización se reubica aquí, que es donde vive la tabla. La tabla casi nunca se actualiza, así que el índice se provisiona una sola vez vía migración versionada.
+
+#### Agregado
+
+- **`jobs/alembic/versions/20260629_0020_cultivos_spatial_index.py`**: crea el índice GiST `sidx_cultivos_geom` sobre `economia.cultivos(geom)` con `fillfactor=100` (tabla read-mostly: índice más compacto, mejor cache hit en lectura), aplica `CLUSTER` (localidad espacial en disco) y `ANALYZE`. La migración es defensiva: si la tabla aún no se cargó (`to_regclass` nula) se omite sin error, ya que `economia.cultivos` se carga por fuera del ETL.
+- **`jobs/alembic/versions/20260629_0021_cultivos_drop_dup_index.py`**: elimina `sidx_cultivos_prueba_geom`, un segundo índice GiST sobre `geom` idéntico al anterior, heredado de cuando la tabla era `cultivos_prueba`. Dos índices iguales solo duplican espacio y costo de escritura; el planner usa uno solo.
+- **`jobs/alembic/versions/20260629_0022_cultivos_geom_3857.py`**: materializa la columna `geom_3857` (`ST_Transform(geom, 3857)`) con su índice GiST `fillfactor=100`. mapalab renderiza en EPSG:3857 y su `ImageWMS` pide cada GetMap en 3857, mientras la geom nativa está en 6368: GeoServer reproyectaba on-the-fly en cada request. Publicar la capa sobre `geom_3857` elimina esa reproyección. La geom 6368 original se conserva. Requiere un paso manual posterior en GeoServer: re-publicar el featuretype apuntando `geom_3857` como geometría por defecto con SRS nativo 3857.
+
+#### Notas
+
+- `CLUSTER` toma `ACCESS EXCLUSIVE` sobre la tabla; la migración corre una sola vez, no en cada arranque. PostgreSQL no mantiene el orden de cluster tras escrituras: si algún día se recarga masivamente la tabla, re-ejecutar el `CLUSTER`/`ANALYZE` manualmente.
+
+---
+
 ## [1.21.1] - 2026-06-19
 
 ### `pg-backup`: archivos de respaldo con dueño del host (no `root`)
