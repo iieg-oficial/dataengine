@@ -6,6 +6,22 @@ El formato esta basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.
 y este proyecto se adhiere a [Versionado Semantico](https://semver.org/lang/es/). El versionado
 de `dataengine` es independiente del de MapaLab.
 
+## [1.23.0] - 2026-06-30
+
+### `economia.cultivos`: columna `clave_municipio` (filtro por municipio en mapalab)
+
+mapalab filtra la "Vista por municipio" con un CQL sobre un campo de la capa, pero `economia.cultivos` no tenía forma de identificar el municipio. Se materializa vía spatial join.
+
+#### Agregado
+
+- **Migración `0023_cultivos_clave_municipio`** (`jobs/alembic/versions/20260630_0023_cultivos_clave_municipio.py`): agrega `clave_municipio varchar(5)` poblada con spatial join punto-en-polígono (`ST_Contains` + `ST_PointOnSurface`) contra `mapa_base.limite_municipal` (ambos en EPSG:6368) — clave INEGI de 5 dígitos. Crea índice btree en `clave_municipio` e índice GiST en `mapa_base.limite_municipal(geom)` (no existía y es necesario para que el join sea rápido). Cobertura 99.4% (las parcelas en borde/costa quedan NULL). Defensiva: se omite si la tabla no existe.
+
+#### Notas
+
+- La config de las 8 capas de cultivo (`has_municipio`, `municipio_field='clave_municipio'`, `municipio_field_type='clave'`) se setea en `mapalab.layers` (vía mariachi); tras cambiarla, correr `make refresh-layer-tree`.
+
+---
+
 ## [1.22.1] - 2026-06-29
 
 ### `run_refresh_layer_tree.py`: serializar highlight, badge e icon_overrides
