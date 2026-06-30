@@ -6,6 +6,19 @@ El formato esta basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.
 y este proyecto se adhiere a [Versionado Semantico](https://semver.org/lang/es/). El versionado
 de `dataengine` es independiente del de MapaLab.
 
+## [1.24.0] - 2026-06-30
+
+### Columna `mapalab.layers.tiled` — capas servidas por tiles, configurables desde mariachi
+
+Permite marcar por capa si el visor la pide como `TileWMS` (cacheable en GeoWebCache) en vez de `ImageWMS`, reemplazando la lista local `TILED_LAYERS` del frontend por config editable desde mariachi.
+
+#### Agregado
+
+- **Migración `0024_layers_tiled`** (`jobs/alembic/versions/20260630_0024_layers_tiled.py`): agrega columna `tiled` (`boolean`, `DEFAULT false`) en `mapalab.layers`.
+- **`run_refresh_layer_tree.py`**: incluye `tiled` en `_LAYER_COLS` y lo serializa en `wmsConfig.tiled` dentro de `_layer_to_wms_config`.
+
+---
+
 ## [1.23.0] - 2026-06-30
 
 ### `economia.cultivos`: columna `clave_municipio` (filtro por municipio en mapalab)
