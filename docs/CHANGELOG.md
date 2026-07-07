@@ -6,6 +6,20 @@ El formato esta basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.
 y este proyecto se adhiere a [Versionado Semantico](https://semver.org/lang/es/). El versionado
 de `dataengine` es independiente del de MapaLab.
 
+## [1.24.1] - 2026-07-07
+
+### Tooling: `make migrate-status` con estado visual + guardia de entorno
+
+Mejoras de DX en los targets de migración. Sin cambios de esquema ni de runtime del servicio.
+
+#### Cambiado
+
+- **`make migrate-status`**: salida compacta a color que resalta la revisión actual (`>`), las pendientes (`o`) y las aplicadas (`+`), con resumen "al día / N pendientes" (usa `alembic history --indicate-current`).
+- **`make migrate`**: muestra el estado de migraciones antes y después de aplicar `alembic upgrade head`, además de ejecutarlo.
+- **Guardia del contenedor `jobs`**: ambos targets verifican acceso vía `docker compose exec`; si el `.env` no está cargado (variables vacías → el compose no parsea) o `jobs` no corre, muestran el motivo real en vez de fallar en silencio.
+
+---
+
 ## [1.24.0] - 2026-06-30
 
 ### Columna `mapalab.layers.tiled` — capas servidas por tiles, configurables desde mariachi

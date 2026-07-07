@@ -6,11 +6,19 @@ CRON_HOUR   = $(word 1,$(subst :, ,$(CRON_SCHEDULE)))
 CRON_MINUTE = $(word 2,$(subst :, ,$(CRON_SCHEDULE)))
 CRON_JOB    = $(CRON_MINUTE) $(CRON_HOUR) * * * cd $(PROJECT_DIR) && make card >> $(PROJECT_DIR)/logs/cron_card.log 2>&1
 
+ESC      := $(shell printf '\033')
+C_RESET  := $(ESC)[0m
+C_BOLD   := $(ESC)[1m
+C_DIM    := $(ESC)[2m
+C_GREEN  := $(ESC)[32m
+C_YELLOW := $(ESC)[33m
+C_CYAN   := $(ESC)[36m
+
 .PHONY: help up down restart ps logs logs-primary logs-backup logs-jobs \
         shell backup restore restore-local clean build certs \
         cron-install cron-remove \
         refresh-periodicity refresh-layer-tree refresh-layer-stats refresh-municipios refresh-all \
-        check-periodicity prod-migration migrate migrate-status \
+        check-periodicity prod-migration migrate migrate-status _migrate-report \
         ingest-metadata \
         version-json
 
@@ -39,8 +47,8 @@ help:
 	@echo "                      Default: with-etl (pull del Sheet activo, fase de testing)."
 	@echo "                      Override:  make prod-migration PROD_MIGRATION_FLAGS=\"--skip-etl\""
 	@echo ""
-	@echo "  migrate             Rebuild de imagen jobs + alembic upgrade head (idempotente)"
-	@echo "  migrate-status      Mostrar version actual + history de alembic"
+	@echo "  migrate             Rebuild de imagen jobs + alembic upgrade head (muestra estado antes/despues)"
+	@echo "  migrate-status      Estado de migraciones: resalta la actual y las pendientes (color)"
 	@echo ""
 	@echo "  refresh-periodicity Refrescar tabla de periodicidad (SQL)"
 	@echo "  refresh-layer-tree  Refrescar cache del arbol de capas MapaLab"
@@ -168,19 +176,49 @@ prod-migration:
 	@./scripts/prod-migration.sh $(PROD_MIGRATION_FLAGS)
 
 migrate:
-	@echo "Sincronizando imagen de jobs con el repo..."
+	@printf "$(C_BOLD)» Sincronizando imagen de jobs con el repo...$(C_RESET)\n"
 	@docker compose build jobs
 	@docker compose up -d jobs
-	@echo "Aplicando migraciones alembic pendientes..."
+	@printf "\n$(C_BOLD)» Estado antes de migrar$(C_RESET)\n"
+	@$(MAKE) --no-print-directory _migrate-report
+	@printf "\n$(C_BOLD)» Aplicando migraciones alembic pendientes...$(C_RESET)\n"
 	@docker compose exec -T jobs alembic upgrade head
-	@echo "OK"
+	@printf "\n$(C_BOLD)» Estado despues de migrar$(C_RESET)\n"
+	@$(MAKE) --no-print-directory _migrate-report
+	@printf "$(C_GREEN)OK$(C_RESET)\n"
 
 migrate-status:
-	@echo "Version actual:"
-	@docker compose exec -T jobs alembic current
-	@echo ""
-	@echo "Historia:"
-	@docker compose exec -T jobs alembic history
+	@printf "$(C_BOLD)» Estado de migraciones alembic$(C_RESET)\n"
+	@$(MAKE) --no-print-directory _migrate-report
+
+_migrate-report:
+	@if ! err=$$(docker compose exec -T jobs true 2>&1 >/dev/null); then \
+	  printf "  $(C_YELLOW)! No se pudo acceder al contenedor 'jobs'.$(C_RESET)\n"; \
+	  reason=$$(printf '%s\n' "$$err" | grep -iE 'invalid spec|is not set|no such|not running|no configuration' | tail -1); \
+	  if [ -n "$$reason" ]; then printf "  $(C_DIM)Motivo: %s$(C_RESET)\n" "$$reason"; fi; \
+	  if printf '%s' "$$err" | grep -qiE 'invalid spec|is not set'; then \
+	    printf "  $(C_DIM)Falta cargar el .env (variables vacias). Verifica que exista .env en este directorio.$(C_RESET)\n"; \
+	  else \
+	    printf "  $(C_DIM)Levantalo con 'make up' o 'make migrate'.$(C_RESET)\n"; \
+	  fi; \
+	else \
+	  docker compose exec -T jobs alembic history --indicate-current 2>/dev/null | awk \
+	  -v cur='$(C_CYAN)' -v pen='$(C_YELLOW)' -v app='$(C_DIM)' \
+	  -v grn='$(C_GREEN)' -v bold='$(C_BOLD)' -v rst='$(C_RESET)' '\
+	  { if ($$0 ~ /^[[:space:]]*$$/) next; \
+	    n++; arr[n]=$$0; if (index($$0,"(current)")>0) curidx=n } \
+	  END { \
+	    if (n==0) { printf "  %s(sin historial de migraciones)%s\n", app, rst; exit } \
+	    if (curidx==0) pend=n; else pend=curidx-1; \
+	    if (pend==0) printf "  %s* Al dia%s -- %d migracion(es) aplicada(s), 0 pendientes\n\n", grn, rst, n; \
+	    else printf "  %s* %d pendiente(s)%s de %d totales\n\n", pen, pend, rst, n; \
+	    for (i=1;i<=n;i++) { \
+	      if (curidx>0 && i==curidx) printf "  %s%s>%s %s%s  (actual)%s\n", cur, bold, rst, cur, arr[i], rst; \
+	      else if (curidx==0 || i<curidx) printf "  %so %s  (pendiente)%s\n", pen, arr[i], rst; \
+	      else printf "  %s+ %s%s\n", app, arr[i], rst; \
+	    } \
+	  }'; \
+	fi
 
 logs-jobs:
 	@docker compose exec jobs tail -n 100 -f /var/log/cron.log
