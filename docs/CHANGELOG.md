@@ -6,6 +6,21 @@ El formato esta basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.
 y este proyecto se adhiere a [Versionado Semantico](https://semver.org/lang/es/). El versionado
 de `dataengine` es independiente del de MapaLab.
 
+## [1.24.2] - 2026-07-16
+
+### Fix (seguridad): publicar Postgres/pgbouncer solo en la interfaz interna
+
+Endurece la exposición de la base de datos y limpia el compose. Sin cambios de esquema.
+
+#### Cambiado
+
+- **`docker-compose.yml`**: `postgres-primary`, `pgbouncer` y `version-api` se publican en `${PG_BIND_ADDRESS}` (obligatorio) en vez del default inline `0.0.0.0`, evitando exponer 5432/6432 en todas las interfaces del host. El `pg_hba.conf` sigue siendo la barrera real; esto reduce la superficie a nivel de bind. Los backups/restores no se ven afectados (usan la red interna de Docker, `host=postgres-primary`).
+- **`docker-compose.yml`**: `pgbouncer` fijado a `edoburu/pgbouncer:v1.25.2-p0` (antes `latest`).
+- **`docker-compose.yml`**: eliminados todos los defaults inline `${VAR:-valor}`; las variables vienen del `.env` (fail-fast si faltan).
+- **`.env.example`**: `PG_BIND_ADDRESS` documentado como IP de interfaz interna (nunca `0.0.0.0`).
+
+---
+
 ## [1.24.1] - 2026-07-07
 
 ### Tooling: `make migrate-status` con estado visual + guardia de entorno

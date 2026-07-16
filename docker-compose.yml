@@ -6,7 +6,7 @@ services:
     container_name: dataengine-primary
     restart: unless-stopped
     ports:
-      - "${PG_BIND_ADDRESS:-0.0.0.0}:${PG_PRIMARY_PORT:-5432}:5432"
+      - "${PG_BIND_ADDRESS:?}:${PG_PRIMARY_PORT:?}:5432"
     environment:
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
@@ -61,11 +61,11 @@ services:
       - db-network
 
   pgbouncer:
-    image: edoburu/pgbouncer:latest
+    image: edoburu/pgbouncer:v1.25.2-p0
     container_name: dataengine-pgbouncer
     restart: unless-stopped
     ports:
-      - "${PGBOUNCER_PORT:-6432}:6432"
+      - "${PG_BIND_ADDRESS:?}:${PGBOUNCER_PORT:?}:6432"
     environment:
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
@@ -90,7 +90,7 @@ services:
     container_name: dataengine-jobs
     restart: unless-stopped
     ports:
-      - "${VERSION_API_PORT:-8088}:8088"
+      - "${PG_BIND_ADDRESS:?}:${VERSION_API_PORT:?}:8088"
     volumes:
       - ./VERSION:/app/VERSION:ro
       - ./version-api/html/version.json:/app/version.json:ro
