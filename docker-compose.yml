@@ -94,6 +94,7 @@ services:
     volumes:
       - ./VERSION:/app/VERSION:ro
       - ./version-api/html/version.json:/app/version.json:ro
+      - /:/host-root:ro
     environment:
       DATAENGINE_DB_USER: ${POSTGRES_USER}
       DATAENGINE_DB_PASSWORD: ${POSTGRES_PASSWORD}
@@ -105,6 +106,8 @@ services:
       MAPALAB_AO_BUCKET: ${MAPALAB_AO_BUCKET}
       MAPALAB_AO_ACCESS_KEY: ${MAPALAB_AO_ACCESS_KEY}
       MAPALAB_AO_SECRET_KEY: ${MAPALAB_AO_SECRET_KEY}
+      ONTOY_SERVICE: dataengine
+      ONTOY_DISK_PATH: /host-root
     depends_on:
       postgres-primary:
         condition: service_healthy
