@@ -6,6 +6,12 @@ El formato esta basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.
 y este proyecto se adhiere a [Versionado Semantico](https://semver.org/lang/es/). El versionado
 de `dataengine` es independiente del de MapaLab.
 
+## [1.25.0] - 2026-07-22
+
+### Agregado: tabla `mapalab.catalogo_capas`
+
+Migración `0025_catalogo_capas`: tabla para la sección "Catálogo" de Mapalab (capas por descarga directa, dadas de alta desde mariachi). Columnas: `workspace_alias` + `geoserver_layer`, `enabled` (visibilidad) + `deleted_at` (papelera), `search_tags`, timestamps y `updated_by`. Índice **único parcial** de `slug` (`WHERE deleted_at IS NULL`) e índice de `enabled` para el listado público. Aditiva; sin impacto en capas ni tablas existentes.
+
 ## [1.24.2] - 2026-07-16
 
 ### Fix (seguridad): publicar Postgres/pgbouncer solo en la interfaz interna
