@@ -6,6 +6,28 @@ El formato esta basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.
 y este proyecto se adhiere a [Versionado Semantico](https://semver.org/lang/es/). El versionado
 de `dataengine` es independiente del de MapaLab.
 
+## [1.26.0] - 2026-07-23
+
+### Agregado: tabla de render `mapa_base.curvas_de_nivel_render`
+
+Migración `0026_curvas_de_nivel_render`. `mapa_base.curvas_de_nivel` guarda cada curva como un LineString completo: la mediana son 133 vértices, pero **47 features superan los 100 000** y la mayor llega a **910 621**. Esas geometrías cruzan medio estado, así que el índice GiST las selecciona en casi cualquier tile y GeoServer procesaba **13.2 millones de vértices por tile de 256 px, sin importar el zoom**.
+
+La tabla nueva materializa las mismas geometrías con `ST_Subdivide(…, 512)` y ya reproyectadas a 3857 (que es lo que pide el visor, de paso elimina la reproyección on-the-fly). Medido:
+
+| zoom | antes | después |
+|---|---|---|
+| z=11 | 624.8 ms/tile | **20.6 ms** |
+| z=13 | 764.4 ms/tile | **7.3 ms** |
+| z=15 | 1165.3 ms/tile | **5.0 ms** |
+
+Consulta espacial: 164.7 ms → 0.49 ms. Salida visual idéntica (comparación píxel a píxel: solo difieren bordes de antialiasing sub-píxel, ninguna línea falta ni se parte).
+
+- La tabla original **no se toca**: conserva las curvas completas en 6368 y sigue siendo la fuente para descargas.
+- Paso manual posterior en GeoServer (documentado en la migración): publicar `general:curvas_de_nivel_render` con SRS nativo 3857 y el estilo `curvas_de_nivel`, apuntar `mapalab.layers.geoserver_layer` a esa capa y dejar `wfs_layer_name` en la original.
+- Si se recargan las curvas hay que regenerar la tabla de render.
+
+Mismo patrón que `0022_cultivos_geom_3857`. Contexto completo en `mapalab/docs/render_layers.md`.
+
 ## [1.25.0] - 2026-07-22
 
 ### Agregado: tabla `mapalab.catalogo_capas`
