@@ -6,6 +6,14 @@ El formato esta basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.
 y este proyecto se adhiere a [Versionado Semantico](https://semver.org/lang/es/). El versionado
 de `dataengine` es independiente del de MapaLab.
 
+## [1.27.0] - 2026-07-23
+
+### Agregado: columna `orden` en `mapalab.catalogo_capas` (reordenar capas manualmente)
+
+Migración `0027_catalogo_capas_orden`. Agrega la columna `orden INTEGER NOT NULL DEFAULT 0` a `mapalab.catalogo_capas` para ordenar manualmente (drag & drop desde el admin de mariachi) las capas del catálogo y reflejar ese orden en el admin y en la vista pública `/catalogo`. Inicializa `orden` respetando el orden alfabético actual (por `nombre`) entre las filas vivas y crea el índice parcial `ix_catalogo_capas_orden` (sobre `deleted_at IS NULL`).
+
+Cambio aditivo y reversible (`downgrade` elimina índice y columna; ninguna otra feature las usa). El backend de mariachi (api 1.74.0) ordena por `orden, nombre`, expone `PUT /catalogo/reorder` y asigna `orden = MAX(orden) + 1` a las capas nuevas y de alta masiva.
+
 ## [1.26.0] - 2026-07-23
 
 ### Agregado: tabla de render `mapa_base.curvas_de_nivel_render`
