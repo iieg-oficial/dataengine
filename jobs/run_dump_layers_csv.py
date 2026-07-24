@@ -104,6 +104,12 @@ def _dump_one(engine, s3, bucket: str, layer: dict) -> str:
         Logger.info(f'  ↪︎  {layer_key}: tabla {schema}.{table} no existe, skip')
         return 'skip'
 
+    columns = _fetch_export_columns(engine, schema, table)
+    if not columns:
+        Logger.info(f'  ↪︎  {layer_key}: {schema}.{table} sin columnas exportables, skip')
+        return 'skip'
+    cols_sql = ', '.join(f'"{c}"' for c in columns)
+
     row_count: Optional[int] = None
     size_bytes = 0
 
@@ -114,7 +120,7 @@ def _dump_one(engine, s3, bucket: str, layer: dict) -> str:
             cursor = raw_conn.cursor()
             try:
                 copy_sql = (
-                    f'COPY (SELECT * FROM "{schema}"."{table}") '
+                    f'COPY (SELECT {cols_sql} FROM "{schema}"."{table}") '
                     f'TO STDOUT WITH CSV HEADER'
                 )
                 cursor.copy_expert(copy_sql, gz)
@@ -174,6 +180,30 @@ def _is_safe_identifier(value: str) -> bool:
     if not value or len(value) > 100:
         return False
     return all(c.isalnum() or c == '_' for c in value)
+
+
+def _fetch_export_columns(engine, schema: str, table: str) -> list[str]:
+    """Columnas exportables sin geometria/geografia.
+
+    Usa ``pg_attribute`` porque ``information_schema.columns`` no lista vistas
+    materializadas, que son la mayoria de las capas descargables.
+    """
+    with engine.connect() as conn:
+        rows = conn.execute(
+            text(
+                'SELECT a.attname FROM pg_attribute a '
+                'JOIN pg_class c ON c.oid = a.attrelid '
+                'JOIN pg_namespace n ON n.oid = c.relnamespace '
+                'JOIN pg_type t ON t.oid = a.atttypid '
+                'WHERE n.nspname = :s AND c.relname = :t '
+                "AND c.relkind IN ('r', 'v', 'm', 'p', 'f') "
+                'AND a.attnum > 0 AND NOT a.attisdropped '
+                "AND t.typname NOT IN ('geometry', 'geography') "
+                'ORDER BY a.attnum'
+            ),
+            {'s': schema, 't': table},
+        ).fetchall()
+    return [row[0] for row in rows]
 
 
 def _table_exists(engine, schema: str, table: str) -> bool:
