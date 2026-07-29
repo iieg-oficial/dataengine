@@ -1,6 +1,6 @@
 # dataengine
 
-**Version:** 1.18.0 ([changelog](docs/CHANGELOG.md))
+**Version:** ver [`VERSION`](VERSION) y el [changelog](docs/CHANGELOG.md)
 
 Stack PostgreSQL para produccion: primary con SSL, pooler, respaldos automaticos con subida al Acervo de Objetos y un container de jobs periodicos sobre el schema `mapalab` (fuente de verdad de MapaLab v1.4.0+).
 
@@ -13,7 +13,7 @@ Stack PostgreSQL para produccion: primary con SSL, pooler, respaldos automaticos
 | `pg-backup` | — | Respaldos automaticos con subida al AO |
 | `jobs` | — | Cron diario: periodicidad (03:00), layer tree (04:00), layer stats (04:30) |
 
-Arquitectura completa + diagrama Mermaid + schema `mapalab` en [`docs/architecture.md`](docs/architecture.md).
+Arquitectura completa + diagrama Mermaid + schema `mapalab` en [`docs/arquitectura.md`](docs/arquitectura.md).
 
 ## Requisitos
 
@@ -39,7 +39,8 @@ La primera vez que se monta el stack para MapaLab v1.4.0+ hay que correr el boot
 make bootstrap-v14 LAYERS_JSON=/ruta/a/layers_export.json
 ```
 
-Pasos, flags, idempotencia y secuencia de deploy en produccion en [`docs/bootstrap-v14.md`](docs/bootstrap-v14.md).
+El bootstrap del schema v14 fue una migracion one-shot ya ejecutada; su registro esta en
+`historial/2026-04-dataengine-bootstrap-v14.md` del repositorio central de contexto.
 
 ## Jobs periodicos
 
@@ -168,8 +169,7 @@ sslmode:  require
 
 ## Docs
 
-- [`docs/architecture.md`](docs/architecture.md) — componentes, schema `mapalab`, volumenes
+- [`docs/arquitectura.md`](docs/arquitectura.md) — componentes, schema `mapalab`, volumenes
 - [`docs/jobs.md`](docs/jobs.md) — cron container y template catalog
-- [`docs/bootstrap-v14.md`](docs/bootstrap-v14.md) — bootstrap del schema `mapalab` y secuencia de deploy
 - [`docs/CHANGELOG.md`](docs/CHANGELOG.md) — cambios por version
-- [`docs/context.md`](docs/context.md) — mapa feature → archivos y TODOs
+- `repos/dataengine/contexto.md` (repositorio central de contexto) — mapa feature → archivos y pendientes

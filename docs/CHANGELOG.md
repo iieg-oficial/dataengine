@@ -6,6 +6,29 @@ El formato esta basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.
 y este proyecto se adhiere a [Versionado Semantico](https://semver.org/lang/es/). El versionado
 de `dataengine` es independiente del de MapaLab.
 
+## [1.28.1] - 2026-07-29
+
+### El contexto se movio al repo central
+
+Solo documentacion; sin cambios en el stack ni en las migraciones.
+
+#### Cambiado
+
+- `docs/architecture.md` → `docs/arquitectura.md`, por la convencion de nombres del ecosistema
+  (kebab-case y en espanol, igual que en mapalab y sieej).
+- El README ya no fija la version en el texto: apunta al archivo `VERSION`. Decia **1.18.0**
+  mientras el repo iba en 1.28.0, y fijar el numero garantiza que el drift vuelva en el proximo
+  bump.
+
+#### Eliminado
+
+- `docs/context.md`, que vive ahora en `repos/dataengine/contexto.md` del repositorio central de
+  contexto (`iieg-oficial/context-ame-esta`).
+- `docs/bootstrap-v14.md`: era una migracion one-shot ya ejecutada — el propio documento advertia
+  «no usar una vez mariachi reciba ediciones en prod». Quedo como registro en
+  `historial/2026-04-dataengine-bootstrap-v14.md`, conservando lo repetible (como recuperar el
+  password del rol).
+
 ## [1.28.0] - 2026-07-29
 
 ### Corregido: el refresco de numeralia borraba estadísticas y se caía en cascada
