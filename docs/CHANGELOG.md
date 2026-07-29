@@ -6,6 +6,32 @@ El formato esta basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.
 y este proyecto se adhiere a [Versionado Semantico](https://semver.org/lang/es/). El versionado
 de `dataengine` es independiente del de MapaLab.
 
+## [1.28.0] - 2026-07-29
+
+### Corregido: el refresco de numeralia borraba estadísticas y se caía en cascada
+
+Tres fallas del job `run_refresh_layer_stats.py`, encontradas en una auditoría del flujo completo de estadísticas dinámicas.
+
+**El job borraba los slots `static` y `formula`.** Solo conocía las 8 operaciones primitivas, así que una configuración guardada por mariachi con valores fijos o fórmulas caía en "config invalida, skip" y el `UPDATE` reescribía `values` completo sin ellos: la numeralia desaparecía del visor tras el cron. Ahora el job replica el motor de mariachi — `static`, `formula`, los seis combinadores (`add`, `sub`, `mul`, `div`, `percent`, `percent_change`), nodos `literal` y el tope de 6 niveles de anidamiento.
+
+**Una query fallida tumbaba el resto del refresco.** Todas las capas corrían en una sola transacción; en Postgres, un error aborta la transacción completa y toda query posterior falla. Bastaba una configuración apuntando a una tabla eliminada para que las capas siguientes se reportaran como `failed` y el `COMMIT` final se convirtiera en un `ROLLBACK` silencioso: el log decía `updated=N` y **ninguna fila se había actualizado**. Ahora cada stat corre en su propio `SAVEPOINT` y cada capa en su propia transacción.
+
+**Protección contra borrado**: si ninguna stat de una capa pudo calcularse, el job revierte y conserva los valores previos en vez de dejar la numeralia vacía.
+
+### Agregado: `ttl_minutes` pasa a ser funcional
+
+La columna existía desde `0003_layer_metadata_stats` pero no la consumía nadie: ni el visor, ni el job (que corría una vez al día para todas las filas por igual). Ahora el job filtra por TTL vencido (con 5 minutos de tolerancia para que un TTL de 24 h no se salte por segundos de deriva) y **el cron pasa de diario 04:30 a cada hora al minuto 30**. Una capa con TTL de 1 h se recalcula cada hora; una de 24 h, una vez al día. `--force` ignora el TTL y recalcula todo.
+
+### Agregado: migración `0031_stats_read_grants`
+
+El motor de estadísticas de mariachi corre como `mariachi_layers`, que solo tenía `SELECT` sobre las 16 tablas de `mapalab`. Los datos de las capas viven en los schemas temáticos, así que **toda estadística sobre datos reales fallaba** con `permission denied for schema demografia` — el preview y el recálculo del panel eran inservibles y solo el cron (que corre como `gisuser`) podía calcular algo.
+
+La migración concede `USAGE` + `SELECT` sobre los schemas temáticos, derivándolos de `mapalab.workspaces` en vez de una lista fija, más `ALTER DEFAULT PRIVILEGES` para las tablas que se creen después. Solo lectura: el motor únicamente agrega (`count`/`sum`/`avg`/`min`/`max`/`latest`) sobre las mismas capas que el visor ya publica. Es idempotente, tolera que el rol no exista y el `downgrade` revoca.
+
+### Cambiado: el formato de las estadísticas se aplica al guardar
+
+El campo `format` se validaba pero ningún productor lo usaba, así que un `avg` llegaba al visor como `340172.1895424836601307`. Ahora se aplica al persistir: `integer`, `decimal_2`, `percentage`, `currency_mxn` y `compact`. Solo ajusta la precisión — el separador de miles lo sigue poniendo el visor y el símbolo va en su propio campo, así que la salida permanece parseable por `formatNumber`.
+
 ## [1.27.0] - 2026-07-23
 
 ### Agregado: columna `orden` en `mapalab.catalogo_capas` (reordenar capas manualmente)

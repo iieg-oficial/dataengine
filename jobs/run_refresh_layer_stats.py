@@ -1,14 +1,17 @@
 import json
 import os
 import sys
-from datetime import datetime
+from datetime import datetime, timezone
 
 from sqlalchemy import create_engine, text
 
 from core.utils.logger import Logger
 
 
-STATS_OPERATIONS = {'count', 'count_distinct', 'count_where', 'sum', 'avg', 'min', 'max', 'latest'}
+PRIMITIVE_OPERATIONS = {'count', 'count_distinct', 'count_where', 'sum', 'avg', 'min', 'max', 'latest'}
+COMBINATOR_OPS = {'add', 'sub', 'mul', 'div', 'percent', 'percent_change'}
+STATS_OPERATIONS = PRIMITIVE_OPERATIONS | {'formula', 'static'}
+MAX_EXPRESSION_DEPTH = 6
 
 
 def _is_identifier(value) -> bool:
@@ -21,7 +24,7 @@ def _is_identifier(value) -> bool:
 
 def _build_query(cfg: dict) -> tuple[str, dict] | None:
     op = cfg.get('operation')
-    if op not in STATS_OPERATIONS:
+    if op not in PRIMITIVE_OPERATIONS:
         return None
     schema = cfg.get('schema')
     table = cfg.get('table')
@@ -69,73 +72,200 @@ def _build_query(cfg: dict) -> tuple[str, dict] | None:
     return sql, params
 
 
+def _to_number(value):
+    if value is None:
+        return None
+    if isinstance(value, bool):
+        return float(value)
+    if isinstance(value, (int, float)):
+        return float(value)
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _execute_primitive(conn, cfg: dict):
+    built = _build_query(cfg)
+    if built is None:
+        raise ValueError(f"config primitiva invalida (operation={cfg.get('operation')})")
+    sql, params = built
+    return conn.execute(text(sql), params).scalar()
+
+
+def _evaluate_expression(conn, expr, depth: int = 0):
+    if depth > MAX_EXPRESSION_DEPTH:
+        raise ValueError('expresion demasiado anidada')
+    if not isinstance(expr, dict):
+        raise ValueError('expresion debe ser objeto')
+
+    if 'literal' in expr:
+        literal = expr['literal']
+        if not isinstance(literal, (int, float)):
+            raise ValueError('literal debe ser numerico')
+        return literal
+
+    if expr.get('operation') in PRIMITIVE_OPERATIONS:
+        return _execute_primitive(conn, expr)
+
+    op = expr.get('op')
+    if op not in COMBINATOR_OPS:
+        raise ValueError(f"combinator invalido: '{op}'")
+
+    left = _to_number(_evaluate_expression(conn, expr.get('left'), depth + 1))
+    right = _to_number(_evaluate_expression(conn, expr.get('right'), depth + 1))
+    if left is None or right is None:
+        return None
+    if op == 'add':
+        return left + right
+    if op == 'sub':
+        return left - right
+    if op == 'mul':
+        return left * right
+    if op == 'div':
+        return left / right if right != 0 else None
+    if op == 'percent':
+        return (left / right) * 100 if right != 0 else None
+    return ((left - right) / right) * 100 if right != 0 else None
+
+
+def _execute_stat(conn, cfg: dict):
+    op = cfg.get('operation')
+    if op == 'static':
+        return cfg.get('value')
+    if op == 'formula':
+        return _evaluate_expression(conn, cfg.get('expression'))
+    return _execute_primitive(conn, cfg)
+
+
+def _format_value(value, fmt) -> str | None:
+    if value is None:
+        return None
+    if not fmt:
+        return str(value)
+    number = _to_number(value)
+    if number is None:
+        return str(value)
+    if fmt == 'integer':
+        return str(int(round(number)))
+    if fmt in ('decimal_2', 'currency_mxn'):
+        return f'{number:.2f}'
+    if fmt == 'percentage':
+        return f'{number:.1f}'
+    if fmt == 'compact':
+        for threshold, suffix in ((1_000_000_000, 'B'), (1_000_000, 'M'), (1_000, 'K')):
+            if abs(number) >= threshold:
+                return f'{number / threshold:.1f}{suffix}'
+        return str(int(number)) if number == int(number) else f'{number:.1f}'
+    return str(value)
+
+
+def _refresh_layer(conn, layer_key: str, stats_config: list) -> tuple[list, list]:
+    values = []
+    errors = []
+
+    for cfg in stats_config:
+        if not isinstance(cfg, dict):
+            errors.append('entrada de configuracion invalida')
+            continue
+        if cfg.get('operation') not in STATS_OPERATIONS:
+            errors.append(f"pos={cfg.get('position')}: operation '{cfg.get('operation')}' no soportada")
+            continue
+
+        needs_db = cfg.get('operation') != 'static'
+        savepoint = conn.begin_nested() if needs_db else None
+        try:
+            raw = _execute_stat(conn, cfg)
+            if savepoint is not None:
+                savepoint.commit()
+        except Exception as exc:
+            if savepoint is not None:
+                savepoint.rollback()
+            errors.append(f"pos={cfg.get('position')}: {exc}")
+            continue
+
+        values.append({
+            'posicion': cfg.get('position'),
+            'nombre': cfg.get('label'),
+            'simbolo': cfg.get('symbol'),
+            'valor': _format_value(raw, cfg.get('format')),
+        })
+
+    values.sort(key=lambda item: item['posicion'] if isinstance(item['posicion'], int) else 99)
+    return values, errors
+
+
+_SELECT_PENDING = """
+    SELECT layer_key, stats_config
+    FROM mapalab.layer_stats
+    WHERE stats_config IS NOT NULL
+      AND jsonb_array_length(stats_config) > 0
+      AND (
+        :force
+        OR values_refreshed_at IS NULL
+        OR NOW() - values_refreshed_at >= make_interval(mins => GREATEST(ttl_minutes - 5, 1))
+      )
+    ORDER BY layer_key
+"""
+
+
 def main() -> int:
     url = _build_url()
     if not url:
         Logger.error('DATAENGINE connection no configurada')
         return 1
 
+    force = '--force' in sys.argv
+
     engine = create_engine(url)
     try:
-        with engine.begin() as conn:
-            rows = conn.execute(text(
-                "SELECT layer_key, stats_config FROM mapalab.layer_stats "
-                "WHERE stats_config IS NOT NULL AND jsonb_array_length(stats_config) > 0"
-            )).fetchall()
+        with engine.connect() as conn:
+            rows = conn.execute(text(_SELECT_PENDING), {'force': force}).fetchall()
 
             if not rows:
-                Logger.info('📊  No hay stats_config — nada que refrescar')
+                Logger.info('📊  Sin capas vencidas por TTL — nada que refrescar')
                 return 0
 
-            updated = skipped = failed = 0
-            for row in rows:
-                layer_key = row[0]
-                stats_config = row[1] or []
-                values = []
-                had_error = False
+            updated = failed = 0
+            degraded = []
+            for layer_key, stats_config in rows:
+                transaction = conn.begin()
+                try:
+                    values, errors = _refresh_layer(conn, layer_key, stats_config or [])
+                    for detail in errors:
+                        Logger.warning(f'   [{layer_key}] {detail}')
 
-                for cfg in stats_config:
-                    if not isinstance(cfg, dict):
-                        continue
-                    built = _build_query(cfg)
-                    if built is None:
-                        Logger.warning(f'   [{layer_key}] pos={cfg.get("position")}: config invalida, skip')
-                        had_error = True
-                        continue
-                    sql, params = built
-                    try:
-                        result = conn.execute(text(sql), params).scalar()
-                    except Exception as exc:
-                        Logger.warning(f'   [{layer_key}] pos={cfg.get("position")}: query fallo: {exc}')
-                        had_error = True
+                    if not values:
+                        transaction.rollback()
+                        failed += 1
+                        Logger.warning(f'   [{layer_key}] ninguna stat pudo calcularse; se conservan los valores previos')
                         continue
 
-                    values.append({
-                        'posicion': cfg.get('position'),
-                        'nombre': cfg.get('label'),
-                        'simbolo': cfg.get('symbol'),
-                        'valor': str(result) if result is not None else None,
-                    })
-
-                if had_error and not values:
+                    conn.execute(
+                        text("""
+                            UPDATE mapalab.layer_stats
+                            SET values = CAST(:values AS jsonb),
+                                values_refreshed_at = :now
+                            WHERE layer_key = :layer_key
+                        """),
+                        {
+                            'values': json.dumps(values),
+                            'now': datetime.now(timezone.utc),
+                            'layer_key': layer_key,
+                        },
+                    )
+                    transaction.commit()
+                    updated += 1
+                    if errors:
+                        degraded.append(layer_key)
+                except Exception as exc:
+                    transaction.rollback()
                     failed += 1
-                    continue
-                if not values:
-                    skipped += 1
-                    continue
+                    Logger.warning(f'   [{layer_key}] refresh fallo: {exc}')
 
-                conn.execute(
-                    text("""
-                        UPDATE mapalab.layer_stats
-                        SET values = CAST(:values AS jsonb),
-                            values_refreshed_at = :now
-                        WHERE layer_key = :layer_key
-                    """),
-                    {'values': json.dumps(values), 'now': datetime.utcnow(), 'layer_key': layer_key},
-                )
-                updated += 1
-
-        Logger.info(f'✅  layer_stats: updated={updated}, skipped={skipped}, failed={failed}')
+        Logger.info(f'✅  layer_stats: updated={updated}, failed={failed}, parciales={len(degraded)}')
+        if degraded:
+            Logger.warning(f'⚠️   Capas actualizadas con stats faltantes: {", ".join(degraded)}')
         return 0
     except Exception as exc:
         Logger.error(f'❌  Refresh stats fallo: {exc}')
