@@ -175,7 +175,7 @@ refresh-all: refresh-periodicity refresh-layer-tree refresh-layer-stats refresh-
 prod-migration:
 	@./scripts/prod-migration.sh $(PROD_MIGRATION_FLAGS)
 
-migrate:
+migrate: version-json
 	@printf "$(C_BOLD)» Sincronizando imagen de jobs con el repo...$(C_RESET)\n"
 	@docker compose build jobs
 	@docker compose up -d jobs

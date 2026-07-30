@@ -6,6 +6,31 @@ El formato esta basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.
 y este proyecto se adhiere a [Versionado Semantico](https://semver.org/lang/es/). El versionado
 de `dataengine` es independiente del de MapaLab.
 
+## [1.28.3] - 2026-07-30
+
+### Corregido: `make migrate` dejaba `/ontoy` publicando la version anterior
+
+El `/ontoy` de dataengine lo sirve `dataengine-jobs` leyendo `version-api/html/version.json`, que
+es un **bind mount** y por tanto no viaja dentro de la imagen. El target `version-json` lo regenera
+desde `VERSION`, y estaba declarado como dependencia de `up` y de `restart` — **pero no de
+`migrate`**, que es justamente el que manda usar el procedimiento de despliegue.
+
+Resultado: tras un `make migrate` la imagen quedaba al dia pero `/ontoy` seguia respondiendo la
+version anterior **indefinidamente**, y el monitor reportaba dataengine como desactualizado sin que
+nada estuviera roto.
+
+Medido el 2026-07-30 en los tres entornos: la imagen `dataengine-jobs` reconstruida con
+`/app/VERSION` en `1.28.1`, y `/ontoy` respondiendo `{"version": "1.27.0", ..., "deployed_at":
+"2026-07-27T21:43:27Z"}` — el timestamp del despliegue anterior. Fallo **identico en Proxmox, GCP
+y produccion**, asi que era del target y no del entorno.
+
+#### Corregido
+
+- `migrate` declara `version-json` como dependencia. Un despliegue con migraciones ya deja el
+  `/ontoy` reportando la version correcta, sin paso manual.
+
+---
+
 ## [1.28.2] - 2026-07-30
 
 ### La ayuda de `bootstrap-v14.sh` ya no menciona staging
