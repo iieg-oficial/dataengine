@@ -18,3 +18,8 @@ jobs/bootstrap/_layers_export.json
 jobs/_legacy_etl/
 
 version-api/html/version.json
+
+secrets/*
+!secrets/.gitkeep
+!secrets/*.example
+compose.local.yaml

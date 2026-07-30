@@ -1,5 +1,24 @@
 name: dataengine
 
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
+x-healthcheck: &healthcheck
+  interval: 10s
+  timeout: 5s
+  retries: 5
+
+x-postgres-env: &postgres-env
+  POSTGRES_USER: ${POSTGRES_USER:?}
+  POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?}
+  POSTGRES_DB: ${POSTGRES_DB:?}
+
+x-host-gateway: &host-gateway
+  - "host.docker.internal:host-gateway"
+
 services:
   postgres-primary:
     image: postgis/postgis:18-3.6-alpine
@@ -8,13 +27,11 @@ services:
     ports:
       - "${PG_BIND_ADDRESS:?}:${PG_PRIMARY_PORT:?}:5432"
     environment:
-      POSTGRES_USER: ${POSTGRES_USER}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-      POSTGRES_DB: ${POSTGRES_DB}
-      ALLOWED_HOSTS: ${ALLOWED_HOSTS}
-      PGDATA: ${PGDATA}
+      <<: *postgres-env
+      ALLOWED_HOSTS: ${ALLOWED_HOSTS:?}
+      PGDATA: ${PGDATA:?}
     volumes:
-      - ${POSTGRES_PRIMARY_DATA}:/var/lib/postgresql/data
+      - ${POSTGRES_PRIMARY_DATA:?}:/var/lib/postgresql/data
       - ./postgres/certs:/var/lib/postgresql/certs
       - ./postgres/primary/entrypoint.sh:/entrypoint-ssl.sh:ro
       - ./postgres/primary/init:/docker-entrypoint-initdb.d
@@ -24,41 +41,43 @@ services:
     entrypoint: /entrypoint-ssl.sh
     command: ["postgres",
               "-c", "config_file=/etc/postgresql/postgresql.conf",
-              "-c", "max_connections=${POSTGRES_MAX_CONNECTIONS}",
-              "-c", "shared_buffers=${POSTGRES_SHARED_BUFFERS}",
-              "-c", "effective_cache_size=${POSTGRES_EFFECTIVE_CACHE_SIZE}"]
+              "-c", "max_connections=${POSTGRES_MAX_CONNECTIONS:?}",
+              "-c", "shared_buffers=${POSTGRES_SHARED_BUFFERS:?}",
+              "-c", "effective_cache_size=${POSTGRES_EFFECTIVE_CACHE_SIZE:?}"]
     healthcheck:
-      test: [ "CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}" ]
-      interval: 10s
-      timeout: 5s
-      retries: 5
+      <<: *healthcheck
+      test: [ "CMD-SHELL", "pg_isready -U ${POSTGRES_USER:?} -d ${POSTGRES_DB:?}" ]
     networks:
       - db-network
+    logging: *logging
 
   pg-backup:
     build: ./backup
     container_name: dataengine-backup
     restart: unless-stopped
     environment:
-      POSTGRES_USER: ${POSTGRES_USER}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-      POSTGRES_DB: ${POSTGRES_DB}
-      AO_ENDPOINT: ${AO_ENDPOINT}
-      AO_BUCKET: ${AO_BUCKET}
-      AO_ACCESS_KEY: ${AO_ACCESS_KEY}
-      AO_SECRET_KEY: ${AO_SECRET_KEY}
-      BACKUP_UID: ${BACKUP_UID}
-      BACKUP_GID: ${BACKUP_GID}
+      <<: *postgres-env
+      AO_ENDPOINT: ${AO_ENDPOINT:?}
+      AO_BUCKET: ${AO_BUCKET:?}
+      AO_ACCESS_KEY: ${AO_ACCESS_KEY:?}
+      AO_SECRET_KEY: ${AO_SECRET_KEY:?}
+      BACKUP_UID: ${BACKUP_UID:?}
+      BACKUP_GID: ${BACKUP_GID:?}
     volumes:
-      - ${BACKUP_DATA}:/backups
+      - ${BACKUP_DATA:?}:/backups
       - ./postgres/certs:/certs:ro
     depends_on:
       postgres-primary:
         condition: service_healthy
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
+    healthcheck:
+      <<: *healthcheck
+      test: ["CMD-SHELL", "pgrep -x crond > /dev/null || exit 1"]
+      interval: 60s
+      retries: 3
+    extra_hosts: *host-gateway
     networks:
       - db-network
+    logging: *logging
 
   pgbouncer:
     image: edoburu/pgbouncer:v1.25.2-p0
@@ -66,10 +85,7 @@ services:
     restart: unless-stopped
     ports:
       - "${PG_BIND_ADDRESS:?}:${PGBOUNCER_PORT:?}:6432"
-    environment:
-      POSTGRES_USER: ${POSTGRES_USER}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-      POSTGRES_DB: ${POSTGRES_DB}
+    environment: *postgres-env
     volumes:
       - ./pgbouncer/pgbouncer.ini:/etc/pgbouncer/pgbouncer.ini:ro
       - ./pgbouncer/entrypoint.sh:/entrypoint.sh:ro
@@ -78,12 +94,12 @@ services:
       postgres-primary:
         condition: service_healthy
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -h localhost -p 6432 -U ${POSTGRES_USER}"]
-      interval: 10s
-      timeout: 5s
+      <<: *healthcheck
+      test: ["CMD-SHELL", "pg_isready -h localhost -p 6432 -U ${POSTGRES_USER:?}"]
       retries: 3
     networks:
       - db-network
+    logging: *logging
 
   jobs:
     build: ./jobs
@@ -95,30 +111,30 @@ services:
       - ./VERSION:/app/VERSION:ro
       - ./version-api/html/version.json:/app/version.json:ro
     environment:
-      DATAENGINE_DB_USER: ${POSTGRES_USER}
-      DATAENGINE_DB_PASSWORD: ${POSTGRES_PASSWORD}
+      DATAENGINE_DB_USER: ${POSTGRES_USER:?}
+      DATAENGINE_DB_PASSWORD: ${POSTGRES_PASSWORD:?}
       DATAENGINE_DB_HOST: postgres-primary
       DATAENGINE_DB_PORT: "5432"
-      DATAENGINE_DB_NAME: ${POSTGRES_DB}
+      DATAENGINE_DB_NAME: ${POSTGRES_DB:?}
       DATAENGINE_DB_SSLMODE: require
-      AO_ENDPOINT: ${AO_ENDPOINT}
-      MAPALAB_AO_BUCKET: ${MAPALAB_AO_BUCKET}
-      MAPALAB_AO_ACCESS_KEY: ${MAPALAB_AO_ACCESS_KEY}
-      MAPALAB_AO_SECRET_KEY: ${MAPALAB_AO_SECRET_KEY}
+      AO_ENDPOINT: ${AO_ENDPOINT:?}
+      MAPALAB_AO_BUCKET: ${MAPALAB_AO_BUCKET:?}
+      MAPALAB_AO_ACCESS_KEY: ${MAPALAB_AO_ACCESS_KEY:?}
+      MAPALAB_AO_SECRET_KEY: ${MAPALAB_AO_SECRET_KEY:?}
       ONTOY_SERVICE: dataengine
       ONTOY_DISK_PATH: ${ONTOY_DISK_PATH:?}
     depends_on:
       postgres-primary:
         condition: service_healthy
     healthcheck:
+      <<: *healthcheck
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8088/ontoy').read()"]
       interval: 30s
-      timeout: 5s
       retries: 3
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
+    extra_hosts: *host-gateway
     networks:
       - db-network
+    logging: *logging
 
 networks:
   db-network:
