@@ -1,0 +1,16 @@
+*.json
+!bootstrap/layers_export.json
+
+**/__pycache__
+**/*.pyc
+**/.pytest_cache
+**/.ruff_cache
+**/.mypy_cache
+
+Dockerfile
+.dockerignore
+*.md
+*.log
+
+.env
+.env.*
