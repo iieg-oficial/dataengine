@@ -16,6 +16,11 @@ x-postgres-env: &postgres-env
   POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?}
   POSTGRES_DB: ${POSTGRES_DB:?}
 
+x-postgres-env-file: &postgres-env-file
+  POSTGRES_USER: ${POSTGRES_USER:?}
+  POSTGRES_PASSWORD_FILE: /run/secrets/dataengine_postgres_password
+  POSTGRES_DB: ${POSTGRES_DB:?}
+
 x-host-gateway: &host-gateway
   - "host.docker.internal:host-gateway"
 
@@ -27,9 +32,11 @@ services:
     ports:
       - "${PG_BIND_ADDRESS:?}:${PG_PRIMARY_PORT:?}:5432"
     environment:
-      <<: *postgres-env
+      <<: *postgres-env-file
       ALLOWED_HOSTS: ${ALLOWED_HOSTS:?}
       PGDATA: ${PGDATA:?}
+    secrets:
+      - dataengine_postgres_password
     volumes:
       - ${POSTGRES_PRIMARY_DATA:?}:/var/lib/postgresql/data
       - ./postgres/certs:/var/lib/postgresql/certs
@@ -140,3 +147,7 @@ networks:
   db-network:
     name: dataengine-network
     driver: bridge
+
+secrets:
+  dataengine_postgres_password:
+    file: ./secrets/dataengine_postgres_password
