@@ -10,16 +10,13 @@ Container que corre **todos los jobs periodicos** sobre la base de datos de Data
 | 04:00 | `run_refresh_layer_tree.py` | Reconstruye JSON del arbol en `mapalab.layer_tree_cache` |
 | 04:30 | `run_refresh_layer_stats.py` | Ejecuta queries de `mapalab.layer_stats.stats_config` y guarda resultados |
 
-Cron corre en foreground (`cron -f`). Logs: `/var/log/cron.log`. Ver `make logs-jobs` desde el repo.
+Cron corre en foreground (`cron -f`). Logs: `/var/log/cron.log`. Ver `make logs` desde el repo, eligiendo el servicio `jobs`.
 
 ## Trigger manual
 
 Desde `/IIEG/dataengine/`:
-- `make refresh-periodicity`
-- `make refresh-layer-tree`
-- `make refresh-layer-stats`
-- `make refresh-all` (los tres)
-- `make logs-jobs` (tail del log del cron)
+- `make refresh` (selector: "todos" o un job concreto)
+- `make logs` (tail del log del cron, eligiendo el servicio `jobs`)
 
 Desde `/IIEG/mapalab/`:
 - `make refresh-layer-tree` delega a este container si esta corriendo; fallback HTTP a `POST /layers/refresh-cache`.

@@ -5,7 +5,7 @@ CERT_DIR="/var/lib/postgresql/certs"
 
 if [ ! -f "$CERT_DIR/server.crt" ] || [ ! -f "$CERT_DIR/server.key" ] || [ ! -f "$CERT_DIR/ca.crt" ]; then
     echo "ERROR: SSL certificates not found in $CERT_DIR"
-    echo "Run 'make certs' on the host before starting the services."
+    echo "Run 'make up' on the host: it generates them before starting the services."
     exit 1
 fi
 

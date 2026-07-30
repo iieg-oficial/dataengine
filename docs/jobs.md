@@ -4,7 +4,7 @@ Container `dataengine-jobs` (antes `dataengine-mapalab-card`). Corre **todos los
 
 ## Cron diario
 
-Todos en UTC del contenedor (`cron -f`). Logs: `/var/log/cron.log` (tail con `make logs-jobs`).
+Todos en UTC del contenedor (`cron -f`). Logs: `/var/log/cron.log` (tail con `make logs`, eligiendo el servicio `jobs`).
 
 | Hora | Script | Funcion |
 |---|---|---|
@@ -19,18 +19,14 @@ Todos en UTC del contenedor (`cron -f`). Logs: `/var/log/cron.log` (tail con `ma
 Desde la raiz del repo (`/IIEG/dataengine`):
 
 ```
-make refresh-periodicity
-make refresh-layer-tree
-make refresh-layer-stats
-make refresh-all           # los tres en orden
-make logs-jobs             # tail del log del cron
-make prod-migration        # orquesta ETL Sheet + schema + seed + migrate + stamp (antes era migrate-mapalab-card + bootstrap-v14)
+make refresh               # selector: "todos" o un job concreto (periodicity, layer-tree,
+                           # layer-stats, municipios, cleanup-shares, dump-layers-csv)
+make logs                  # tail del log del cron, eligiendo el servicio jobs
+make bootstrap             # rol, schema, grants, seed, migrate y stamp
 
 # ingesta ad-hoc de metadatos desde CSV (dependencias externas)
-make ingest-metadata DEP=<dep> SOURCE=<path|url>                       # dry-run
-make ingest-metadata DEP=<dep> SOURCE=<path|url> EXTRA='--apply'       # apply directo
-make ingest-metadata DEP=<dep> SOURCE=<path|url> EXTRA='--review --apply'  # review por columna
-make ingest-metadata DEP=<dep> SOURCE=<path|url> EXTRA='--plan-out /tmp/plan.json'  # plan editable
+make ingest-metadata       # pregunta la dependencia y la fuente (ruta o URL), muestra el plan
+                           # en dry-run y pide escribir "aplicar" antes de tocar la base
 ```
 
 Desde `/IIEG/mapalab/`: `make refresh-layer-tree` delega a este container si esta corriendo (fallback HTTP a `POST /layers/refresh-cache` del backend mapalab).

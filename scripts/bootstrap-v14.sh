@@ -194,7 +194,7 @@ if [ $SKIP_SEED -eq 0 ]; then
     if [ -z "$LAYERS_JSON" ]; then
         echo "  ERROR: --layers-json es requerido para esta fase (o usa --skip-seed)" >&2
         echo "  El repo trae un baseline: jobs/bootstrap/layers_export.json" >&2
-        echo "  Usar: make bootstrap-v14   (toma el baseline por default)" >&2
+        echo "  Usar: make bootstrap   (toma el baseline por default)" >&2
         echo "        o --layers-json /ruta/custom.json para uno propio" >&2
         exit 1
     fi

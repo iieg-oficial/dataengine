@@ -77,4 +77,4 @@ Si el volumen de datos ya existe, re-inicializar o copiar manualmente para aplic
 
 ## Certificados SSL
 
-`make certs` genera CA + cert de servidor en `postgres/certs/` (idempotente). Validez: 10 anos CA, 2 anos server. `make up` lo invoca automaticamente.
+La generacion de CA + cert de servidor en `postgres/certs/` es idempotente y corre sola como prerequisito de `make up` y `make deploy`. Validez: 10 anos CA, 2 anos server.

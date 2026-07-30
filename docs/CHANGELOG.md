@@ -6,6 +6,65 @@ El formato esta basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.
 y este proyecto se adhiere a [Versionado Semantico](https://semver.org/lang/es/). El versionado
 de `dataengine` es independiente del de MapaLab.
 
+## [1.29.0] - 2026-07-30
+
+### Cambiado: Makefile homologado con el resto del ecosistema
+
+La interfaz de comandos es ahora la misma en los nueve repos: `up` levanta desarrollo sin
+reconstruir y `deploy` hace produccion completa (`git pull` + `down` + `build` + `up`). Se
+retiraron todas las banderas: el entorno se detecta por el nombre de proyecto de Compose y lo que
+antes era un argumento ahora es un selector interactivo. Lo transversal vive en `make/common.mk` y
+`make/lib.sh`, copiados en cada repo. Convencion completa en `ecosistema/makefiles.md` del repo de
+contexto.
+
+Las reglas se partieron en `make/db.mk`, `make/migrate.mk` y `make/jobs.mk`, y el Makefile quedo
+como indice.
+
+### Eliminado: el cron que invocaba `make card`
+
+`CRON_JOB` llamaba a `make card`, target borrado el 2026-04-22 junto con el ETL legacy del Google
+Sheet. Como `up` y `restart` invocaban `cron-install`, **cada despliegue reinstalaba un cron que
+fallaba todas las noches** con `No rule to make target 'card'`. El trabajo real ya lo hace
+`jobs/crontab` dentro del contenedor. Se retiraron `CRON_JOB`, `cron-install` y `cron-remove`; hay
+que desinstalar a mano el crontab que siga vivo en las VMs (`crontab -l | grep 'make card'`).
+
+### Eliminado: `prod-migration` y el ETL del Google Sheet
+
+El pull del Sheet que alimentaba `public.mapalab_card` dejo de tener sentido: la ingesta masiva
+vive ahora en mariachi. Con el se van `scripts/prod-migration.sh`, el tag `legacy-etl-snapshot`,
+la credencial de service account de Google y el `pip install` de pandas/gspread en runtime.
+
+El bootstrap sigue disponible como **`make bootstrap`**, que invoca `scripts/bootstrap-v14.sh`:
+crea el rol `mariachi_layers`, el schema `mapalab` con sus grants, siembra las capas del baseline
+y aplica `alembic upgrade head`. Sigue siendo obligatorio en un entorno nuevo, porque la migracion
+`0001_mapalab_init` da por hecho que el schema ya existe.
+
+### Eliminado: `restore-local` y `version-json`
+
+`restore-local` invocaba `restore/do-restore-local.sh`, que no existe en el repo ni existio nunca
+en el historial de git. `version-json` y la carpeta `version-api/` se retiraron: el `/ontoy` lee la
+version de `VERSION`, ya montado en el contenedor `jobs`.
+
+### Cambiado: los refresh se fusionan en `refresh`
+
+`refresh-all`, `refresh-layer-tree`, `refresh-layer-stats`, `refresh-municipios` y
+`refresh-periodicity` pasan a un solo `refresh` con selector, que ademas expone
+`cleanup-shares` y `dump-layers-csv`, que corren por cron pero no tenian target. Pedir
+`layer-stats` explicitamente ahora usa `--force`: sin el, el TTL hacia que no hiciera nada y
+pareciera un fallo. `refresh-municipios` sale del conjunto por defecto por ser un
+`REFRESH MATERIALIZED VIEW CONCURRENTLY` mensual y pesado.
+
+### Cambiado: `migrate-status` y `ps` se fusionan en `status`
+
+Consultar el estado no puede tener efectos secundarios, y `migrate` reconstruye y recrea el
+contenedor `jobs`. El reporte de alembic vive ahora en `make status`, junto al `ps`. `make shell`
+pasa a ser la terminal generica del selector y la consola psql es `make psql`.
+
+### Cambiado: `ingest-metadata` es interactivo
+
+Ya no recibe `DEP=`, `SOURCE=` ni `EXTRA=`. Pregunta la dependencia y la fuente, corre el plan en
+dry-run y pide confirmacion escribiendo `aplicar` antes de escribir en la base.
+
 ## [1.28.3] - 2026-07-30
 
 ### Corregido: `make migrate` dejaba `/ontoy` publicando la version anterior

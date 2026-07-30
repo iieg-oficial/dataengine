@@ -29,14 +29,14 @@ cp .env.example .env
 make up
 ```
 
-`make up` genera certificados SSL la primera vez (idempotente) y, en `ENV=production`, instala el cron job del host.
+`make up` genera certificados SSL la primera vez (idempotente) antes de levantar el stack.
 
 ## Bootstrap v1.4.0 MapaLab
 
 La primera vez que se monta el stack para MapaLab v1.4.0+ hay que correr el bootstrap que crea el rol owner, el schema `mapalab`, las tablas, los seeds y migra los datos legacy:
 
 ```bash
-make bootstrap-v14 LAYERS_JSON=/ruta/a/layers_export.json
+make bootstrap
 ```
 
 El bootstrap del schema v14 fue una migracion one-shot ya ejecutada; su registro esta en
@@ -52,50 +52,32 @@ El container `jobs` corre 3 refresh diarios sobre el schema `mapalab`. Cron, tem
 make help             # lista completa
 
 # servicios
-make up               # certs + up + cron-install (si ENV=production)
+make up               # certs + up
 make down
 make restart
-make build            # rebuild sin cache (imagen de backup)
-make ps
+make deploy           # produccion: git pull + down + build + up
+make status           # contenedores + estado de las migraciones alembic
 make clean            # destructivo: elimina volumenes
 
 # logs
-make logs             # todos
-make logs-primary
-make logs-backup
-make logs-jobs        # tail del cron del container jobs
+make logs             # selector de servicio (o todos)
 
 # base de datos
-make shell            # psql en primary
+make psql             # psql en primary
 
 # respaldos
-make backup                      # solo en ENV=production
-make restore FILE=mi_dump.dump   # restaura dentro del container primary
-make restore-local FILE=...      # restaura contra la BD remota usando vars DATAENGINE_DB_* del .env
+make backup           # solo en ENV=production
+make restore          # selector de dump en restore/, restaura dentro del container primary
 
 # jobs periodicos sobre mapalab schema
-make refresh-periodicity  # refresca public.layer_periodicity
-make refresh-layer-tree   # rebuild de mapalab.layer_tree_cache
-make refresh-layer-stats  # evalua stats_config de mapalab.layer_stats
-make refresh-all          # los 3 refresh en orden
+make refresh              # selector: todos o un job concreto
 make check-periodicity    # verifica si la periodicidad esta al dia
 
 # ingesta ad-hoc de metadatos desde CSV (dependencias externas)
-make ingest-metadata DEP=<dep> SOURCE=<path|url>                      # dry-run
-make ingest-metadata DEP=<dep> SOURCE=<path|url> EXTRA='--apply'      # apply directo
-make ingest-metadata DEP=<dep> SOURCE=<path|url> EXTRA='--review --apply'  # review por columna en TTY
+make ingest-metadata      # pregunta dependencia y fuente, muestra el plan y pide confirmar con "aplicar"
 
-# bootstrap v1.4.0 y migracion 1-shot
-make bootstrap-v14 LAYERS_JSON=...
-make bootstrap-v14-dry
-make migrate-mapalab-card  # re-sync public.mapalab_card -> mapalab.layer_metadata+stats
-
-# cron host
-make cron-install
-make cron-remove
-
-# certs
-make certs
+# bootstrap y migracion de produccion
+make bootstrap        # rol, schema, grants, seed y alembic upgrade head (idempotente)
 ```
 
 ## Restaurar un dump
@@ -106,15 +88,13 @@ make certs
    cp /ruta/a/mi_dump.dump restore/
    ```
 
-2. Restaurar:
+2. Restaurar y elegir el archivo en el selector:
 
    ```bash
-   make restore FILE=mi_dump.dump
+   make restore
    ```
 
 Formatos: `.dump` (custom de `pg_dump`, recomendado), `.sql`, `.sql.gz`.
-
-Tambien `make restore-local FILE=...` para restaurar contra la BD remota usando `DATAENGINE_DB_*` del `.env`.
 
 ## Respaldos
 
@@ -128,7 +108,7 @@ Copiar `.env.example` a `.env` y configurar al menos:
 
 | Variable | Descripcion |
 |---|---|
-| `ENV` | `production` habilita cron host + backups; cualquier otro valor los desactiva |
+| `ENV` | `production` habilita los backups; cualquier otro valor los desactiva |
 | `POSTGRES_USER` / `POSTGRES_PASSWORD` / `POSTGRES_DB` | Credenciales de la BD |
 | `ALLOWED_HOSTS` | Lista de IPs (separadas por espacio) autorizadas en `pg_hba.conf` |
 | `PG_BIND_ADDRESS` | IP de binding del puerto expuesto (default `0.0.0.0`) |
@@ -138,7 +118,6 @@ Copiar `.env.example` a `.env` y configurar al menos:
 | `POSTGRES_PRIMARY_DATA` | Volumen host para `/var/lib/postgresql/data` |
 | `BACKUP_DATA` | Volumen host para dumps (`/backups` en `pg-backup`) |
 | `AO_ENDPOINT` / `AO_BUCKET` / `AO_ACCESS_KEY` / `AO_SECRET_KEY` | Acervo de Objetos |
-| `CRON_SCHEDULE` | Hora del cron host en formato `HH:MM` |
 
 El container `jobs` recibe sus credenciales DB via `DATAENGINE_DB_*`, inyectadas desde las `POSTGRES_*` en el `compose.yaml`. Ver [`docs/jobs.md`](docs/jobs.md#variables-de-entorno) para vars opcionales (`DATAENGINE_URL`, `MAPALAB_STATS_DB_*`).
 
