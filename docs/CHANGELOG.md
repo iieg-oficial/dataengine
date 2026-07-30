@@ -6,6 +6,21 @@ El formato esta basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.
 y este proyecto se adhiere a [Versionado Semantico](https://semver.org/lang/es/). El versionado
 de `dataengine` es independiente del de MapaLab.
 
+## [1.28.2] - 2026-07-30
+
+### La ayuda de `bootstrap-v14.sh` ya no menciona staging
+
+Solo documentacion; sin cambios en el stack ni en las migraciones. El entorno staging se retiro
+del ecosistema y este repo nunca tuvo uno: no habia archivos, ni targets, ni variables.
+
+#### Cambiado
+
+- El bloque de conectividad `mariachi-api ↔ DataEngine` que imprime `scripts/bootstrap-v14.sh`
+  decia `dev / staging (mismo host, compose)`; ahora dice solo `dev`. El caso de produccion
+  (servers separados) no cambia.
+
+---
+
 ## [1.28.1] - 2026-07-29
 
 ### El contexto se movio al repo central

@@ -280,7 +280,7 @@ echo "      ACERVO_ENDPOINT / ACERVO_ACCESS_KEY / ACERVO_SECRET_KEY"
 echo
 echo " 3. Conectividad mariachi-api ↔ DataEngine (importante, no lo hace este script):"
 echo
-echo "    dev / staging (mismo host, compose):"
+echo "    dev (mismo host, compose):"
 echo "      En docker-compose.*.yml del mariachi, servicio 'api':"
 echo "        networks:"
 echo "          - mariachi_network_[dev]"
