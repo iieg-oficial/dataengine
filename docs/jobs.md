@@ -37,7 +37,7 @@ Desde `/IIEG/mapalab/`: `make refresh-layer-tree` delega a este container si est
 
 ## Variables de entorno
 
-Heredadas del `docker-compose.yml` raiz:
+Heredadas del `compose.yaml` raiz:
 
 - `DATAENGINE_DB_USER`, `DATAENGINE_DB_PASSWORD`, `DATAENGINE_DB_HOST`, `DATAENGINE_DB_PORT`, `DATAENGINE_DB_NAME`, `DATAENGINE_DB_SSLMODE`
 - `DATAENGINE_URL` (alternativa: URL completa; tiene prioridad si esta seteada)

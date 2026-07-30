@@ -26,7 +26,7 @@ Desde `/IIEG/mapalab/`:
 
 ## Variables de entorno
 
-Heredadas del `docker-compose.yml` del stack:
+Heredadas del `compose.yaml` del stack:
 
 - `DATAENGINE_DB_USER`, `DATAENGINE_DB_PASSWORD`, `DATAENGINE_DB_HOST`, `DATAENGINE_DB_PORT`, `DATAENGINE_DB_NAME`, `DATAENGINE_DB_SSLMODE`
 - Alternativa: `DATAENGINE_URL` (URL completa)

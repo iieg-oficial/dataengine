@@ -281,7 +281,7 @@ echo
 echo " 3. Conectividad mariachi-api ↔ DataEngine (importante, no lo hace este script):"
 echo
 echo "    dev (mismo host, compose):"
-echo "      En docker-compose.*.yml del mariachi, servicio 'api':"
+echo "      En compose.*.yaml del mariachi, servicio 'api':"
 echo "        networks:"
 echo "          - mariachi_network_[dev]"
 echo "          - dataengine-network   # external: true"

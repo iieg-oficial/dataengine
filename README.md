@@ -140,7 +140,7 @@ Copiar `.env.example` a `.env` y configurar al menos:
 | `AO_ENDPOINT` / `AO_BUCKET` / `AO_ACCESS_KEY` / `AO_SECRET_KEY` | Acervo de Objetos |
 | `CRON_SCHEDULE` | Hora del cron host en formato `HH:MM` |
 
-El container `jobs` recibe sus credenciales DB via `DATAENGINE_DB_*`, inyectadas desde las `POSTGRES_*` en el `docker-compose.yml`. Ver [`docs/jobs.md`](docs/jobs.md#variables-de-entorno) para vars opcionales (`DATAENGINE_URL`, `MAPALAB_STATS_DB_*`).
+El container `jobs` recibe sus credenciales DB via `DATAENGINE_DB_*`, inyectadas desde las `POSTGRES_*` en el `compose.yaml`. Ver [`docs/jobs.md`](docs/jobs.md#variables-de-entorno) para vars opcionales (`DATAENGINE_URL`, `MAPALAB_STATS_DB_*`).
 
 ## Control de acceso
 
