@@ -6,6 +6,27 @@ El formato esta basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.
 y este proyecto se adhiere a [Versionado Semantico](https://semver.org/lang/es/). El versionado
 de `dataengine` es independiente del de MapaLab.
 
+## [1.30.0] - 2026-07-31
+
+### Agregado: `image_format` y `antialias` por capa (migracion 0032)
+
+`mapalab.layers` gana dos columnas para controlar como se le pide cada capa a GeoServer.
+Medido sobre un tile de 256x256 de `mapa_base.curvas_de_nivel_render`: PNG 21 465 B,
+PNG 8 bits 12 114 B (-44 %), PNG sin antialias 8 698 B (-59 %) y ambos combinados 3 594 B
+(-83 %). El ajuste optimo depende de la capa —una rampa continua sufre con paleta de 256
+colores, una linea monocroma no— asi que se configura por capa desde la pestana Servicios de
+mariachi.
+
+Los defaults (`image/png`, `full`) reproducen el comportamiento anterior: **ninguna capa cambia
+de aspecto al migrar**. Dos `CHECK` acotan los valores aceptados.
+
+### Corregido: `run_refresh_layer_tree.py` habria dejado fuera las columnas nuevas
+
+El job duplica el serializador del backend de mapalab (`_layer_to_dict`), asi que se actualizo
+en el mismo commit: `_LAYER_COLS` y el bloque `wmsConfig`. Sin eso el cron nocturno habria
+reescrito el arbol cacheado sin `format` ni `antialias`, y las capas configuradas habrian vuelto
+al default sin aviso. Es el riesgo que documenta `ecosistema/contratos.md`.
+
 ## [1.29.0] - 2026-07-30
 
 ### Cambiado: Makefile homologado con el resto del ecosistema
