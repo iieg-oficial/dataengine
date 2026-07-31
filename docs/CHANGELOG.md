@@ -6,6 +6,16 @@ El formato esta basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.
 y este proyecto se adhiere a [Versionado Semantico](https://semver.org/lang/es/). El versionado
 de `dataengine` es independiente del de MapaLab.
 
+## [1.31.1] - 2026-07-31
+
+### Agregado: `VERBOSE=1` en los targets que usan `run_step`
+
+Sincronización de `make/lib.sh` y `make/common.mk` con gateway-hub 1.42.0. `run_step` esconde la
+salida de cada paso y sólo la muestra —las últimas 40 líneas— si falla, así que un `docker build`
+real y uno servido entero por caché se ven igual salvo por el cronómetro. Con `VERBOSE=1` la
+salida se imprime en directo, indentada bajo el paso y conservando el `ok`/`fail` y el tiempo. El
+comportamiento por defecto no cambia.
+
 ## [1.31.0] - 2026-07-31
 
 ### Cambiado: defaults de render a antialias en texto y tiles activados (migracion 0033)
