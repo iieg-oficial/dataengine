@@ -6,6 +6,19 @@ El formato esta basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.
 y este proyecto se adhiere a [Versionado Semantico](https://semver.org/lang/es/). El versionado
 de `dataengine` es independiente del de MapaLab.
 
+## [1.31.0] - 2026-07-31
+
+### Cambiado: defaults de render a antialias en texto y tiles activados (migracion 0033)
+
+La 0032 dejo los defaults reproduciendo el comportamiento anterior para que ninguna capa cambiara
+de aspecto. Con los ajustes ya medidos, los defaults del sistema pasan a `antialias='text'` y
+`tiled=true`: el suavizado solo en etiquetas baja el tile un 59 % conservando la transparencia, y
+los tiles habilitan GeoWebCache.
+
+Las capas existentes que estaban en `full` pasan a `text`. **`tiled` no se activa en masa**: una
+capa con tiles y un `CQL_FILTER` no declarado en GWC pierde el metatiling y sus poligonos salen
+cortados, asi que primero hay que declarar los filtros en `sextante/config/gwc-filters.txt`.
+
 ## [1.30.0] - 2026-07-31
 
 ### Agregado: `image_format` y `antialias` por capa (migracion 0032)

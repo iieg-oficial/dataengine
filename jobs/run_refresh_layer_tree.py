@@ -143,7 +143,7 @@ def _layer_to_wms_config(layer: dict, ws_map: dict[str, dict]) -> Optional[dict]
         'wmsGroup': layer.get('wms_group'),
         'tiled': bool(layer.get('tiled')),
         'format': layer.get('image_format') or 'image/png',
-        'antialias': layer.get('antialias') or 'full',
+        'antialias': layer.get('antialias') or 'text',
         'wfsAvailable': layer.get('wfs_available'),
         'wfsLayerName': layer.get('wfs_layer_name'),
         'timeEnabled': layer.get('time_enabled'),
