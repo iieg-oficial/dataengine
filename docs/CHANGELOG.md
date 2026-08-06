@@ -6,6 +6,30 @@ El formato esta basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.
 y este proyecto se adhiere a [Versionado Semantico](https://semver.org/lang/es/). El versionado
 de `dataengine` es independiente del de MapaLab.
 
+## [1.32.0] - 2026-08-06
+
+### Corregido: 82 de 83 vistas materializadas sin indice espacial (migracion 0034)
+
+Solo `mapalab.municipios` tenia indice GiST, y es la unica que se crea desde una migracion de
+este repo; las tematicas se crean fuera y nadie se los puso. Cada una repite la geometria
+completa del municipio en cada periodo, asi que pesan ~1.25 GB con ~17 000 filas, y **cada tile
+hacia un Seq Scan de la vista entera**.
+
+Medido sobre `seguridad_y_proteccion_ciudadana.personas_localizadas`, con la consulta real de un
+tile de 256 px a z=11 (envelope espacial + `fecha`):
+
+| | Plan | Buffers | Tiempo |
+|---|---|---|---|
+| Sin indice | Seq Scan | 63 961 | **5 436 ms** |
+| Con indice | Bitmap Index Scan | 21 | **1.291 ms** |
+
+End-to-end, una pantalla de 70 tiles en frio pasa de 48.5 s a 0.8 s.
+
+La migracion recorre las matviews con un `DO` block en vez de una lista fija, porque las vistas
+no las declara este repo: una tematica nueva queda cubierta con solo volver a aplicarla.
+`REFRESH MATERIALIZED VIEW` reconstruye los indices, asi que no hay que recrearlos despues de
+cada refresco. En el espejo tardo 18 min 41 s sobre las 83 vistas.
+
 ## [1.31.1] - 2026-07-31
 
 ### Agregado: `VERBOSE=1` en los targets que usan `run_step`
