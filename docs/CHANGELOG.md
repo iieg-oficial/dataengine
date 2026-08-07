@@ -6,6 +6,38 @@ El formato esta basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.
 y este proyecto se adhiere a [Versionado Semantico](https://semver.org/lang/es/). El versionado
 de `dataengine` es independiente del de MapaLab.
 
+## [1.32.1] - 2026-08-07
+
+### Corregido: el catalogo no apuntaba a la capa de render de curvas (migracion 0035)
+
+La `0026` materializa `mapa_base.curvas_de_nivel_render` y su docstring dice que apunta
+`mapalab.layers.geoserver_layer` a esa capa, pero **no ejecuta ningun UPDATE**: el cambio se venia
+haciendo a mano en cada entorno. El espejo lo tenia; GCP no, y ahi se detecto.
+
+Quien decide que capa pide el visor es esa columna, no el codigo del frontend. Con la capa
+original cada tile no cacheado renderiza sobre LineStrings completos —47 features pasan de 100 000
+vertices y la mayor llega a 910 621—, asi que el indice GiST los selecciona en casi cualquier
+envelope. Medido en GCP sobre el mismo tile:
+
+| | Render (`MISS`) |
+|---|---|
+| `general:curvas_de_nivel` | **42.51 s** y 2.48 s |
+| `general:curvas_de_nivel_render` | **0.51 s** y 0.19 s |
+
+No aparece como error en ningun log: se manifiesta como saturacion de CPU del nodo cuando alguien
+navega a una zona sin cachear.
+
+`wfs_layer_name` queda en la tabla original, para que las descargas sigan entregando las curvas
+completas en 6368.
+
+**La migracion borra `mapalab.layer_tree_cache`**, o el cambio no llega al visor: el arbol del
+catalogo se sirve desde ahi y **no se invalida solo** —`get_cached_state()` no lo compara contra
+`mapalab.layers`, solo mira su `etag`—. Encima hay otra cache en memoria por worker con TTL de
+30 s; para verlo al instante, `POST /layers/refresh-cache` con `X-Internal-Token`.
+
+Los UPDATE llevan condicion sobre el valor actual: aplicarla en un entorno ya corregido no cambia
+nada.
+
 ## [1.32.0] - 2026-08-06
 
 ### Corregido: 82 de 83 vistas materializadas sin indice espacial (migracion 0034)
