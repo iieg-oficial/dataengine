@@ -6,6 +6,23 @@ El formato esta basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.
 y este proyecto se adhiere a [Versionado Semantico](https://semver.org/lang/es/). El versionado
 de `dataengine` es independiente del de MapaLab.
 
+## [1.32.2] - 2026-08-10
+
+### Corregido: el `/ontoy` del nodo no publicaba el check `containers`
+
+`ontoy_server.py` implementa `_list_containers()`, pero el servicio `jobs` no montaba
+`/var/run/docker.sock`, así que salía por `if not DOCKER_SOCKET_PATH.exists(): return [], None`
+—sin excepción y sin log— y el check nunca aparecía en la respuesta. El monitor llevaba desde
+siempre ciego a los cuatro contenedores del nodo, sin que nada se viera roto: el endpoint
+respondía 200 con `disk` y ya.
+
+Se agregan al `compose.yaml` las dos líneas que sextante, acervo y mapalab ya tenían: el bind del
+socket en `:ro` y `ONTOY_COMPOSE_PROJECT: dataengine`, que es lo que filtra por proyecto — sin él,
+en un monolito el sidecar lista los ~29 contenedores del host.
+
+**Al desplegar:** `docker compose up -d --no-deps jobs`. El `--no-deps` no es opcional: sin él
+compose puede recrear `dataengine-primary` y tumbar Postgres unos segundos.
+
 ## [1.32.1] - 2026-08-07
 
 ### Corregido: el catalogo no apuntaba a la capa de render de curvas (migracion 0035)

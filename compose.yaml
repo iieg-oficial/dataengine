@@ -116,6 +116,7 @@ services:
       - "${PG_BIND_ADDRESS:?}:${VERSION_API_PORT:?}:8088"
     volumes:
       - ./VERSION:/app/VERSION:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
     environment:
       DATAENGINE_DB_USER: ${POSTGRES_USER:?}
       DATAENGINE_DB_PASSWORD: ${POSTGRES_PASSWORD:?}
@@ -128,6 +129,7 @@ services:
       MAPALAB_AO_ACCESS_KEY: ${MAPALAB_AO_ACCESS_KEY:?}
       MAPALAB_AO_SECRET_KEY: ${MAPALAB_AO_SECRET_KEY:?}
       ONTOY_SERVICE: dataengine
+      ONTOY_COMPOSE_PROJECT: dataengine
       ONTOY_DISK_PATH: ${ONTOY_DISK_PATH:?}
     depends_on:
       postgres-primary:
