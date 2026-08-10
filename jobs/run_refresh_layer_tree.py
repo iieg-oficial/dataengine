@@ -84,6 +84,7 @@ _LAYER_COLS = [
     'icon_url', 'icon_overrides',
     'notice', 'badge',
     'highlight_color', 'highlight_shape',
+    'geometry_type',
 ]
 
 
@@ -251,6 +252,9 @@ def _layer_to_node(layer: dict, ws_map: dict[str, dict], aliases: dict[str, list
 
     if layer.get('highlight_shape'):
         node['highlightShape'] = layer['highlight_shape']
+
+    if layer.get('geometry_type'):
+        node['geometryType'] = layer['geometry_type']
 
     return node
 

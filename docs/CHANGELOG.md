@@ -6,6 +6,38 @@ El formato esta basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.
 y este proyecto se adhiere a [Versionado Semantico](https://semver.org/lang/es/). El versionado
 de `dataengine` es independiente del de MapaLab.
 
+## [1.33.0] - 2026-08-10
+
+### Agregado: `mapalab.layers.geometry_type`, el tipo de geometría del catálogo
+
+El visor y el plugin de QGIS ya sabían dibujar el tipo de geometría de una capa, pero el dato no
+existía en ninguna parte: cada cliente lo resolvía en caliente con un `DescribeFeatureType` por
+capa —el visor al abrir el panel de capas activas, el plugin al pintar cada fila—. Con 115
+`typeName` distintos entre las 209 hojas del catálogo, eso es una ráfaga de peticiones a GeoServer
+por sesión, y basta que una falle para que el ícono no aparezca.
+
+La columna guarda el dato una sola vez, con los valores que ya espera el frontend y sin traducción
+intermedia: `point`, `line`, `polygon`, `raster`. Queda nullable porque los nodos que no son capa
+no tienen geometría y porque hay capas de las que no se puede deducir.
+
+`run_backfill_geometry_type.py` la puebla. El ráster se resuelve sin red —`raster_periodicity` o
+workspace en `raster`/`lluvia`/`temperatura`, 4 capas— y el resto sale del `DescribeFeatureType`
+del WFS, memorizado por `typeName` para no repetir la consulta de las capas que comparten tabla.
+Se lee `localType` además de `type`, porque GeoServer marca como `gml:*` solo la geometría por
+defecto y una segunda columna geométrica aparece como `xsd:MultiPolygon`.
+
+Resultado de la primera corrida: 101 punto, 93 polígono, 10 línea, 4 ráster. Queda una sin
+clasificar, `curvas_de_nivel`, que se publica solo por WMS —su `wfs_available` es `FALSE` y
+GeoServer responde `Could not find type` al describirla—, así que no hay de dónde deducirla; se
+ajusta a mano desde el editor de capas de mariachi.
+
+El job queda registrado como `geometry-type` en `make refresh`, fuera de la lista por defecto:
+habla con GeoServer y no tiene por qué correr en cada refresco rutinario. Necesita `GEOSERVER_URL`
+en el `.env`.
+
+`run_refresh_layer_tree.py` publica el campo como `geometryType` en el árbol. Sin eso, el cron de
+las 4:00 reconstruiría la caché sin el dato y el ícono desaparecería del visor cada madrugada.
+
 ## [1.32.2] - 2026-08-10
 
 ### Corregido: el `/ontoy` del nodo no publicaba el check `containers`
