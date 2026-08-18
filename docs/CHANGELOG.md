@@ -6,6 +6,52 @@ El formato esta basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.
 y este proyecto se adhiere a [Versionado Semantico](https://semver.org/lang/es/). El versionado
 de `dataengine` es independiente del de MapaLab.
 
+## [1.34.0] - 2026-08-18
+
+### Agregado: conteos H3 precalculados para el hexbin del visor
+
+MapaLab agrupa puntos en hexagonos H3 desde su 1.129.0, pero lo hace en el navegador: hay que
+traerse los puntos. Medido contra la capa peor, `delitos_fiscalia_violencia_familiar` con 110 215
+puntos, eso son **50 MB de GeoJSON y 82 MB de heap**, y se paga en cada F5 porque el visor guarda
+en `sessionStorage` el estado, nunca las geometrias. De ahi su tope de 20 000 elementos.
+
+Dos tablas nuevas en `mapalab` y un job que las puebla a las **04:15**:
+
+| Tabla | Contenido | Medido |
+|---|---|---|
+| `hexbin_cells` | `(resolution, h3_index) -> geom`, compartida por todo el catalogo | 6 297 filas, **1.9 MB** |
+| `hexbin_counts` | `(layer_key, resolution, h3_index, anio, clave_municipio, total)` | 203 739 filas, **44 MB** |
+
+Son dos y no una por algo que **solo H3 permite**: la celda `8a2a1072b59ffff` es la misma para
+delitos y para escuelas, asi que su poligono se guarda una vez. Con una rejilla arbitraria habria
+que repetirlo por capa.
+
+El conteo va por **anio y municipio como columnas**, no resuelto por geometria: una celda de r7 mide
+1.5 km de lado y las del borde contienen puntos de dos municipios. Como columna el conteo es exacto.
+Cuesta poco: en r7 son 9 171 filas en vez de 2 169, no 2 169 x 10 anios x 125 municipios, porque
+cada punto cae en un solo anio y un solo municipio.
+
+Las resoluciones son **3, 4, 6 y 7** —estado y municipio—; de 8 hacia abajo lo sigue cubriendo el
+calculo en el navegador, que ademas respeta cualquier filtro dinamico.
+
+El indice lo calcula **Python con el paquete `h3`**, no la base: compilar `h3-pg` en la imagen
+`postgis/postgis:18-3.6-alpine` obligaria a mantener una imagen propia de Postgres. Comprobado que
+Python y JavaScript devuelven la misma celda para el mismo punto, que es lo que permite que el
+precalculado y el calculo en cliente coincidan.
+
+El job lee por **WFS**, no de las tablas: las capas publicadas no siempre son tablas. Las 11 de
+delitos son la misma `seguridad_y_proteccion_ciudadana.delitos_fiscalia` con distinto filtro en
+GeoServer, asi que leer de la base obligaria a replicar esos filtros. Pide solo la geometria, la
+fecha y el municipio, y aplica el `cql_filter` del catalogo.
+
+`layer_key` es el **id del nodo** del catalogo, no el typename: varios nodos comparten tabla con
+distinto filtro y usar el typename hacia que se pisaran entre ellos.
+
+`anio` y `clave_municipio` son nullable a proposito: hay capas de puntos sin fecha y sin municipio,
+y la fila con los dos en NULL es el total de la celda sin desglosar.
+
+No se toca ninguna tabla tematica y la bajada de la migracion es un `DROP`.
+
 ## [1.33.0] - 2026-08-10
 
 ### Agregado: `mapalab.layers.geometry_type`, el tipo de geometría del catálogo
