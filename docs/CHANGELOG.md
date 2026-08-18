@@ -6,6 +6,19 @@ El formato esta basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.
 y este proyecto se adhiere a [Versionado Semantico](https://semver.org/lang/es/). El versionado
 de `dataengine` es independiente del de MapaLab.
 
+## [1.36.0] - 2026-08-18
+
+### Cambiado: el hexbin precalcula tambien las resoluciones 5 y 8
+
+El visor traduce zoom a resolucion H3 con una tabla propia, y las cuatro que guardaba el job —3, 4,
+6 y 7— **no cubrian el zoom inicial**: al abrir el mapa se pide la 5, que no existia, asi que la
+capa caia al calculo en el navegador y ahi el tope de 20 000 la rechazaba. Los zooms 12 y 13, que
+piden la 8, tenian el mismo problema.
+
+Ahora precalcula **3, 4, 5, 6, 7 y 8**. El costo esta medido: los conteos pasan de 203 739 filas y
+44 MB a **457 550 filas y 114 MB**, y las celdas compartidas de 6 297 a 16 716 (5 MB). De la 9 en
+adelante —zoom 14 y mas cerca— sigue resolviendo el navegador.
+
 ## [1.35.0] - 2026-08-18
 
 ### Agregado: `mapalab.hexbin_agregado`, la vista que publica el hexbin en GeoServer

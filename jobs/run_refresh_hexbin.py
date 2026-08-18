@@ -13,7 +13,7 @@ from sqlalchemy import create_engine, text
 from core.utils.logger import Logger
 
 
-RESOLUCIONES: tuple[int, ...] = (3, 4, 6, 7)
+RESOLUCIONES: tuple[int, ...] = (3, 4, 5, 6, 7, 8)
 
 CAMPOS_FECHA: tuple[str, ...] = ('fecha', 'anio', 'ano', 'fecha_hecho')
 CAMPOS_MUNICIPIO: tuple[str, ...] = ('municipio', 'nombre_municipio', 'mun')
