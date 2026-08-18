@@ -6,6 +6,24 @@ El formato esta basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.
 y este proyecto se adhiere a [Versionado Semantico](https://semver.org/lang/es/). El versionado
 de `dataengine` es independiente del de MapaLab.
 
+## [1.35.0] - 2026-08-18
+
+### Agregado: `mapalab.hexbin_agregado`, la vista que publica el hexbin en GeoServer
+
+La 1.34.0 dejo los conteos H3 en dos tablas, pero GeoServer necesita **una** entidad con geometria
+para publicar una capa. La vista hace el join entre `hexbin_counts` y `hexbin_cells` y expone las
+columnas planas para filtrar con CQL:
+
+    layer_key = 'violencia_familiar' AND resolution = 7
+      AND anio IS NULL AND clave_municipio IS NULL
+
+Es una vista de base y no una SQL view de GeoServer a proposito: asi la definicion vive versionada
+en la migracion y GeoServer solo la registra. El `fid` existe porque el WFS necesita un
+identificador estable por fila y la unicidad aqui es la tupla completa.
+
+Publicada en el workspace `general` sobre un datastore nuevo `mapalab_hexbin` que apunta al schema
+`mapalab`. Comprobado por WFS: devuelve el poligono de la celda, su indice H3 y el total.
+
 ## [1.34.0] - 2026-08-18
 
 ### Agregado: conteos H3 precalculados para el hexbin del visor
