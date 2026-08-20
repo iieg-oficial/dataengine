@@ -19,7 +19,7 @@ if [ ! -f "$FILEPATH" ]; then
     exit 1
 fi
 
-export PGPASSWORD="${POSTGRES_PASSWORD}"
+export PGPASSWORD="${POSTGRES_PASSWORD:-$(cat "${POSTGRES_PASSWORD_FILE:?POSTGRES_PASSWORD o POSTGRES_PASSWORD_FILE}")}"
 
 echo "Recreando base $POSTGRES_DB..."
 psql -U "$POSTGRES_USER" -d postgres -q -v ON_ERROR_STOP=1 <<SQL
