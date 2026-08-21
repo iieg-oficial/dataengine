@@ -9,6 +9,7 @@ from core.utils.logger import Logger
 
 
 PRIMITIVE_OPERATIONS = {'count', 'count_distinct', 'count_where', 'sum', 'avg', 'min', 'max', 'latest'}
+OPERATIONS_WITHOUT_FIELD = {'count', 'count_where'}
 COMBINATOR_OPS = {'add', 'sub', 'mul', 'div', 'percent', 'percent_change'}
 STATS_OPERATIONS = PRIMITIVE_OPERATIONS | {'formula', 'static'}
 MAX_EXPRESSION_DEPTH = 6
@@ -36,7 +37,9 @@ def _build_query(cfg: dict) -> tuple[str, dict] | None:
     where_value = cfg.get('where_value')
     order_field = cfg.get('order_field')
 
-    if op != 'count' and not _is_identifier(field):
+    if op not in OPERATIONS_WITHOUT_FIELD and not _is_identifier(field):
+        return None
+    if field is not None and not _is_identifier(field):
         return None
     if where_field and not _is_identifier(where_field):
         return None
