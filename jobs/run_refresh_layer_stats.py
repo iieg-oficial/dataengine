@@ -15,7 +15,9 @@ COMBINATOR_OPS = {'add', 'sub', 'mul', 'div', 'percent', 'percent_change'}
 STATS_OPERATIONS = PRIMITIVE_OPERATIONS | {'formula', 'static'}
 MAX_EXPRESSION_DEPTH = 6
 FILTER_OPS = {'eq', 'in', 'gte', 'lte', 'between', 'is_not_null'}
-CONTEXT_KEYS = {'municipio.claves', 'municipio.nombres', 'fecha.inicio', 'fecha.fin'}
+CONTEXT_KEYS = {'municipio', 'municipio.claves', 'municipio.nombres', 'fecha.inicio', 'fecha.fin'}
+MUNICIPIO_FIELD_TOKEN = '@municipio'
+MUNICIPIO_CONTEXT_BY_TYPE = {'clave': '{{municipio.claves}}', 'nombre': '{{municipio.nombres}}'}
 SQL_COMPARATORS = {'eq': '=', 'gte': '>=', 'lte': '<='}
 MAX_FILTERS = 6
 
@@ -59,7 +61,8 @@ def _valid_filters(raw, context: dict | None) -> list[dict] | None:
     for item in raw:
         if not isinstance(item, dict):
             return None
-        if not _is_identifier(item.get('field')):
+        field = item.get('field')
+        if field != MUNICIPIO_FIELD_TOKEN and not _is_identifier(field):
             return None
         if item.get('op') not in FILTER_OPS:
             return None
@@ -126,6 +129,76 @@ def _effective_filters(cfg: dict, filters: list[dict]) -> list[dict]:
         legacy = {'field': where_field, 'op': 'eq', 'value': where_value, 'param': 'where_value'}
         return [legacy] + filters
     return filters
+
+
+_LAYER_BINDING_SQL = """
+    WITH RECURSIVE cadena AS (
+        SELECT id, parent_id, municipio_field, municipio_field_type
+        FROM mapalab.layers
+        WHERE workspace_alias || ':' || geoserver_layer = :layer_key
+          AND deleted_at IS NULL
+        UNION ALL
+        SELECT p.id, p.parent_id, p.municipio_field, p.municipio_field_type
+        FROM mapalab.layers p
+        JOIN cadena c ON c.parent_id = p.id
+        WHERE p.deleted_at IS NULL
+    )
+    SELECT municipio_field, municipio_field_type
+    FROM cadena
+    WHERE municipio_field IS NOT NULL
+    LIMIT 1
+"""
+
+
+def load_layer_binding(conn, layer_key: str) -> dict | None:
+    row = conn.execute(text(_LAYER_BINDING_SQL), {'layer_key': layer_key}).first()
+    if not row:
+        return None
+    return {'municipio_field': row[0], 'municipio_field_type': row[1]}
+
+
+def _bind_filter(item: dict, binding: dict | None) -> dict | None:
+    bound = dict(item)
+    if bound.get('field') == MUNICIPIO_FIELD_TOKEN:
+        field = (binding or {}).get('municipio_field')
+        if not field:
+            return None
+        bound['field'] = field
+    if _placeholder_key(bound.get('value')) == 'municipio':
+        replacement = MUNICIPIO_CONTEXT_BY_TYPE.get((binding or {}).get('municipio_field_type'))
+        if not replacement:
+            return None
+        bound['value'] = replacement
+    return bound
+
+
+def _bind_expression(expr: dict, binding: dict | None) -> dict:
+    bound = dict(expr)
+    if bound.get('filters'):
+        bound['filters'] = [
+            f for f in (_bind_filter(f, binding) for f in bound['filters']) if f is not None
+        ]
+    for side in ('left', 'right'):
+        if isinstance(bound.get(side), dict):
+            bound[side] = _bind_expression(bound[side], binding)
+    return bound
+
+
+def bind_layer_fields(stats_config, binding: dict | None) -> list:
+    bound_config = []
+    for cfg in stats_config or []:
+        if not isinstance(cfg, dict):
+            bound_config.append(cfg)
+            continue
+        item = dict(cfg)
+        if item.get('filters'):
+            item['filters'] = [
+                f for f in (_bind_filter(f, binding) for f in item['filters']) if f is not None
+            ]
+        if item.get('operation') == 'formula' and isinstance(item.get('expression'), dict):
+            item['expression'] = _bind_expression(item['expression'], binding)
+        bound_config.append(item)
+    return bound_config
 
 
 def _build_query(cfg: dict, context: dict | None = None) -> tuple[str, dict] | None:
@@ -269,7 +342,9 @@ def _refresh_layer(conn, layer_key: str, stats_config: list) -> tuple[list, list
     values = []
     errors = []
 
-    for cfg in stats_config:
+    binding = load_layer_binding(conn, layer_key)
+
+    for cfg in bind_layer_fields(stats_config, binding):
         if not isinstance(cfg, dict):
             errors.append('entrada de configuracion invalida')
             continue
