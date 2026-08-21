@@ -47,6 +47,33 @@ nombre, nombre en mayusculas, nombre nulo y sin campos.
 Las otras ocho capas sin desglose municipal son las `auto-eventos-*` del schema `eventos`, que no
 traen `cvegeo` ni campo de municipio. Suman ~442 puntos y si las necesitan requieren spatial join.
 
+### Agregado: filtros compuestos y placeholders de contexto en las estadisticas
+
+Una estadistica podia llevar **una** condicion, de igualdad exacta, contra un valor fijo
+(`where_field` = `where_value`). Ahora lleva hasta seis, con `eq`, `in`, `gte`, `lte`, `between` e
+`is_not_null`, y aplica a todas las primitivas, no solo a `count_where`:
+
+```json
+"filters": [
+  {"field": "nivel_educativo", "op": "eq",      "value": "Primaria"},
+  {"field": "municipio",       "op": "in",      "value": "{{municipio.nombres}}"},
+  {"field": "fecha",           "op": "between", "value": ["{{fecha.inicio}}", "{{fecha.fin}}"]}
+]
+```
+
+Un valor con forma `{{clave}}` no es literal: se resuelve al ejecutar contra una lista blanca de
+cuatro claves (`municipio.claves`, `municipio.nombres`, `fecha.inicio`, `fecha.fin`) y **siempre
+por bind param**, nunca interpolado. El SQL lo sigue armando el motor.
+
+**La regla que sostiene el diseno:** si un placeholder no trae valor, el filtro **se omite**. El
+cron corre sin contexto, asi que persiste el total sin filtrar como hasta ahora; la misma
+configuracion sirve despues para la vista filtrada del visor, sin duplicarla por capa.
+
+`where_field`/`where_value` siguen funcionando y se traducen a un filtro `eq` que conserva el
+nombre del bind, asi que las configuraciones ya guardadas no cambian de SQL. Verificado contra
+`educacion.centros_educativos`: los dos motores generan el mismo SQL y el mismo resultado en los
+seis casos probados, y las seis capas con `stats_config` refrescan sin errores.
+
 ### Agregado: `scripts/stats_read_grants.sql`
 
 Los GRANT de lectura que `mariachi_layers` necesita sobre los schemas tematicos —los que la
