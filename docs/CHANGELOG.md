@@ -6,6 +6,54 @@ El formato esta basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.
 y este proyecto se adhiere a [Versionado Semantico](https://semver.org/lang/es/). El versionado
 de `dataengine` es independiente del de MapaLab.
 
+## [1.38.0] - 2026-08-21
+
+### Agregado: indice UNIQUE sobre `fid` en las vistas materializadas (migracion 0039)
+
+GeoServer rechaza con 400 cualquier `GetFeature` con `STARTINDEX` sobre una capa sin clave
+primaria, asi que las capas montadas sobre vistas materializadas no paginan: un poligono sobre
+`delitos_fiscalia_robo_persona` cruza 88 702 registros y solo devuelve la primera pagina.
+
+Postgres no admite `ADD PRIMARY KEY` sobre una vista materializada, solo indices. La migracion
+crea `CREATE UNIQUE INDEX (fid)` en cada matview que tenga columna `fid` y ningun indice unico.
+Como la `0034`, descubre las vistas con un `DO` block sobre `pg_class` y no con una lista fija:
+las matviews no las declara este repo y una tematica nueva queda cubierta con solo volver a
+aplicarla.
+
+**Defensiva por vista.** Un `CREATE UNIQUE INDEX` sobre datos duplicados aborta la transaccion
+entera, y produccion no tiene por que traer los mismos datos que el espejo. Antes de cada indice
+comprueba que `fid` sea unico y no nulo en esa vista; la que falle se omite con `WARNING` y las
+demas se aplican. Al final reporta creados y omitidos.
+
+**No cubre `mapalab.hexbin_agregado`**, que es una vista normal y no acepta indices. Tampoco
+paginaba al 2026-08-21; su arreglo es otro.
+
+**Va en ventana de mantenimiento.** Alembic corre cada migracion en una transaccion, asi que el
+indice no puede crearse con `CONCURRENTLY`: cada `CREATE UNIQUE INDEX` toma `ACCESS EXCLUSIVE`
+sobre su matview y bloquea las lecturas mientras dura. Los tiles de esa capa se detienen en ese
+rato. Como referencia, la `0034` tardo 18 min 41 s sobre las 83 vistas.
+
+**Dos pasos despues de aplicarla**, ninguno automatico:
+
+- **Recargar el datastore en GeoServer.** GeoTools resuelve la clave al cargar el featuretype y
+  la cachea; sin recarga sigue creyendo que no hay clave.
+- **Verificar con `scripts/check-wfs-pagination.sh`**, que compara antes y despues.
+
+### Agregado: `scripts/check-wfs-pagination.sh`
+
+Recorre todas las capas del `GetCapabilities` de WFS y lanza a cada una un
+`GetFeature&count=1&startIndex=0`, que es la prueba que separa a las que paginan de las que no.
+Reporta capa por capa, agrupa las que fallan por workspace y sale con codigo 1 si hay alguna.
+Formaliza una verificacion que hasta ahora se hacia a mano.
+
+Requiere `User-Agent` propio: el gateway bloquea el de `curl` en `/sextante/ows`.
+
+Medido contra el espejo el 2026-08-21: **46 de 121 capas paginan, 75 fallan** —
+`seguridad_y_proteccion_ciudadana` 35, `desarrollo_social` 20, `demografia` 8,
+`gobierno_y_ciudadania` 5, `economia` 5, `educacion` 1, `mapalab` 1. La ultima auditoria manual
+(2026-07-31) contaba 73 en cinco workspaces: `educacion:centros_educativos` y
+`mapalab:hexbin_agregado` se sumaron despues.
+
 ## [1.37.0] - 2026-08-21
 
 ### Agregado: `make migrate` deja el catalogo listo, no solo migrado
