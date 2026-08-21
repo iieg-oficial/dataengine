@@ -31,42 +31,6 @@ cero claves fuera del catalogo.
 Las otras ocho capas sin desglose municipal son las `auto-eventos-*` del schema `eventos`, que no
 traen `cvegeo` ni campo de municipio. Suman ~442 puntos y si las necesitan requieren spatial join.
 
-## [1.38.0] - 2026-08-21
-
-### Agregado: `scripts/check-wfs-pagination.sh`
-
-Recorre todas las capas del `GetCapabilities` de WFS y lanza a cada una un
-`GetFeature&count=1&startIndex=0`, que es la prueba que separa a las que paginan de las que no.
-Reporta capa por capa, agrupa las que fallan por workspace y sale con codigo 1 si hay alguna.
-Formaliza una verificacion que se hacia a mano. Requiere `User-Agent` propio: el gateway bloquea
-el de `curl` en `/sextante/ows`.
-
-Medido contra el espejo el 2026-08-21: **46 de 121 capas paginan, 75 fallan** —
-`seguridad_y_proteccion_ciudadana` 35, `desarrollo_social` 20, `demografia` 8,
-`gobierno_y_ciudadania` 5, `economia` 5, `educacion` 1, `mapalab` 1. La ultima auditoria manual
-(2026-07-31) contaba 73 en cinco workspaces: `educacion:centros_educativos` y
-`mapalab:hexbin_agregado` se sumaron despues.
-
-### Agregado: migracion `0039_matviews_unique_fid`, hoy un no-op
-
-Crea `CREATE UNIQUE INDEX (fid)` en cada vista materializada que tenga columna `fid` y ningun
-indice unico, para que GeoServer pueda paginarlas. Como la `0034`, descubre las vistas con un `DO`
-block sobre `pg_class` y no con una lista fija, verifica que `fid` sea unico y no nulo antes de
-cada indice —un `CREATE UNIQUE INDEX` sobre duplicados abortaria la transaccion entera— y reporta
-creados y omitidos.
-
-**No crea ningun indice hoy.** El analisis del 2026-07-31 asumia que las 82 matviews traian
-columna `fid`. Verificado contra la base el 2026-08-21: **ninguna de las 83 la tiene**, ni ellas ni
-sus tablas base. `fid` existe en 55 tablas normales, que son justo las que ya paginan. La
-migracion queda como red por si la columna llega, pero **la paginacion sigue rota** y el arreglo
-real es fabricar el identificador: recrear las matviews con `row_number() OVER () AS fid`, o
-publicarlas como SQL view en GeoServer declarando el identificador.
-
-Cuando haya columna y la migracion cree indices, dos cosas mas: **va en ventana de mantenimiento**
-—Alembic corre en transaccion, asi que no puede usar `CONCURRENTLY` y cada indice toma
-`ACCESS EXCLUSIVE` sobre su matview; la `0034` tardo 18 min 41 s sobre las 83— y **hay que
-recargar el datastore en GeoServer**, que resuelve la clave al cargar el featuretype y la cachea.
-
 ### Agregado: `scripts/stats_read_grants.sql`
 
 Los GRANT de lectura que `mariachi_layers` necesita sobre los schemas tematicos —los que la
@@ -103,6 +67,42 @@ De paso, `field` ahora se valida como identificador **cuando viene presente**, t
 operaciones que no lo requieren. Antes un `field` con contenido arbitrario pasaba sin revisar si la
 operacion no lo necesitaba; no era explotable —nunca llegaba al SQL— pero era una diferencia
 gratuita con el motor de mariachi, que si lo validaba.
+
+## [1.38.0] - 2026-08-21
+
+### Agregado: `scripts/check-wfs-pagination.sh`
+
+Recorre todas las capas del `GetCapabilities` de WFS y lanza a cada una un
+`GetFeature&count=1&startIndex=0`, que es la prueba que separa a las que paginan de las que no.
+Reporta capa por capa, agrupa las que fallan por workspace y sale con codigo 1 si hay alguna.
+Formaliza una verificacion que se hacia a mano. Requiere `User-Agent` propio: el gateway bloquea
+el de `curl` en `/sextante/ows`.
+
+Medido contra el espejo el 2026-08-21: **46 de 121 capas paginan, 75 fallan** —
+`seguridad_y_proteccion_ciudadana` 35, `desarrollo_social` 20, `demografia` 8,
+`gobierno_y_ciudadania` 5, `economia` 5, `educacion` 1, `mapalab` 1. La ultima auditoria manual
+(2026-07-31) contaba 73 en cinco workspaces: `educacion:centros_educativos` y
+`mapalab:hexbin_agregado` se sumaron despues.
+
+### Agregado: migracion `0039_matviews_unique_fid`, hoy un no-op
+
+Crea `CREATE UNIQUE INDEX (fid)` en cada vista materializada que tenga columna `fid` y ningun
+indice unico, para que GeoServer pueda paginarlas. Como la `0034`, descubre las vistas con un `DO`
+block sobre `pg_class` y no con una lista fija, verifica que `fid` sea unico y no nulo antes de
+cada indice —un `CREATE UNIQUE INDEX` sobre duplicados abortaria la transaccion entera— y reporta
+creados y omitidos.
+
+**No crea ningun indice hoy.** El analisis del 2026-07-31 asumia que las 82 matviews traian
+columna `fid`. Verificado contra la base el 2026-08-21: **ninguna de las 83 la tiene**, ni ellas ni
+sus tablas base. `fid` existe en 55 tablas normales, que son justo las que ya paginan. La
+migracion queda como red por si la columna llega, pero **la paginacion sigue rota** y el arreglo
+real es fabricar el identificador: recrear las matviews con `row_number() OVER () AS fid`, o
+publicarlas como SQL view en GeoServer declarando el identificador.
+
+Cuando haya columna y la migracion cree indices, dos cosas mas: **va en ventana de mantenimiento**
+—Alembic corre en transaccion, asi que no puede usar `CONCURRENTLY` y cada indice toma
+`ACCESS EXCLUSIVE` sobre su matview; la `0034` tardo 18 min 41 s sobre las 83— y **hay que
+recargar el datastore en GeoServer**, que resuelve la clave al cargar el featuretype y la cachea.
 
 ## [1.37.0] - 2026-08-21
 
