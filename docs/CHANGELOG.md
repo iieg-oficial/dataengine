@@ -28,6 +28,22 @@ cero claves fuera del catalogo.
 **Faltan dos pasos que no son SQL**: declarar `municipio_field='clave_municipio'` y
 `municipio_field_type='clave'` en las seis capas desde mariachi, y correr `make refresh-layer-tree`.
 
+### Cambiado: `run_refresh_hexbin.py` acepta un campo de clave, no solo de nombre
+
+La columna de la `0040` no servia de nada para el precalculado. El job buscaba el municipio entre
+`municipio`, `nombre_municipio` y `mun`, y resolvia **por nombre** contra `mapalab.municipios`:
+`clave_municipio` no estaba en esa lista, y aunque se agregara, habria buscado `'14120'` en un
+diccionario indexado por nombres. La migracion arreglaba el filtro del visor y dejaba los 6 222
+NULL del hexbin intactos.
+
+Ahora `_propiedades` detecta tambien un campo de clave —`clave_municipio` o `clave_geo`— y
+`_clave_de` lo prefiere sobre el de nombre, validandolo contra las claves de `mapalab.municipios`
+antes de aceptarlo. Si la clave falta, viene nula o no esta en el catalogo, cae al nombre como
+siempre: las capas que hoy resuelven al 100 % no cambian de comportamiento.
+
+Probado con los ocho casos: clave directa, clave sobre nombre, clave invalida, clave nula, solo
+nombre, nombre en mayusculas, nombre nulo y sin campos.
+
 Las otras ocho capas sin desglose municipal son las `auto-eventos-*` del schema `eventos`, que no
 traen `cvegeo` ni campo de municipio. Suman ~442 puntos y si las necesitan requieren spatial join.
 

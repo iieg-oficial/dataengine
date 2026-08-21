@@ -18,6 +18,7 @@ RESOLUCIONES: tuple[int, ...] = (3, 4, 5, 6, 7, 8)
 
 CAMPOS_FECHA: tuple[str, ...] = ('fecha', 'anio', 'ano', 'fecha_hecho')
 CAMPOS_MUNICIPIO: tuple[str, ...] = ('municipio', 'nombre_municipio', 'mun')
+CAMPOS_CLAVE_MUNICIPIO: tuple[str, ...] = ('clave_municipio', 'clave_geo')
 
 RASTER_WORKSPACES = frozenset({'raster', 'lluvia', 'temperatura'})
 
@@ -165,7 +166,9 @@ def _ows(geoserver: str, typename: str, params: dict[str, str]) -> Any:
         return json.loads(respuesta.read().decode('utf-8'))
 
 
-def _propiedades(geoserver: str, typename: str) -> tuple[str, Optional[str], Optional[str]]:
+def _propiedades(
+    geoserver: str, typename: str
+) -> tuple[str, Optional[str], Optional[str], Optional[str]]:
     datos = _ows(geoserver, typename, {
         'service': 'WFS', 'version': '2.0.0', 'request': 'DescribeFeatureType',
         'typeNames': typename, 'outputFormat': 'application/json',
@@ -180,7 +183,8 @@ def _propiedades(geoserver: str, typename: str) -> tuple[str, Optional[str], Opt
     )
     fecha = next((n for n in nombres if _normalizar(n) in CAMPOS_FECHA), None)
     municipio = next((n for n in nombres if _normalizar(n) in CAMPOS_MUNICIPIO), None)
-    return geometria, fecha, municipio
+    clave = next((n for n in nombres if _normalizar(n) in CAMPOS_CLAVE_MUNICIPIO), None)
+    return geometria, fecha, municipio, clave
 
 
 def _features(geoserver: str, typename: str, campos: list[str], cql: Optional[str]) -> list[dict]:
@@ -208,11 +212,23 @@ def _anio_de(valor: Any) -> Optional[int]:
     return int(texto) if texto.isdigit() else None
 
 
+def _clave_de(props: dict[str, Any], campo_clave: Optional[str], campo_muni: Optional[str],
+              municipios: dict[str, str], claves_validas: set[str]) -> Optional[str]:
+    if campo_clave:
+        valor = str(props.get(campo_clave) or '').strip()
+        if valor in claves_validas:
+            return valor
+    if campo_muni:
+        return municipios.get(_normalizar(props.get(campo_muni)))
+    return None
+
+
 def _procesar(geoserver: str, capa: dict[str, Any], typename: str,
               municipios: dict[str, str]) -> tuple[dict, dict]:
-    geometria, campo_fecha, campo_muni = _propiedades(geoserver, typename)
-    campos = [geometria] + [c for c in (campo_fecha, campo_muni) if c]
+    geometria, campo_fecha, campo_muni, campo_clave = _propiedades(geoserver, typename)
+    campos = [geometria] + [c for c in (campo_fecha, campo_clave, campo_muni) if c]
     features = _features(geoserver, typename, campos, capa.get('cql_filter'))
+    claves_validas = set(municipios.values())
 
     celdas: dict[tuple[int, str], str] = {}
     conteos: dict[tuple[int, str, Optional[int], Optional[str]], int] = defaultdict(int)
@@ -228,7 +244,7 @@ def _procesar(geoserver: str, capa: dict[str, Any], typename: str,
 
         props = feature.get('properties') or {}
         anio = _anio_de(props.get(campo_fecha)) if campo_fecha else None
-        clave = municipios.get(_normalizar(props.get(campo_muni))) if campo_muni else None
+        clave = _clave_de(props, campo_clave, campo_muni, municipios, claves_validas)
 
         for resolucion in RESOLUCIONES:
             cell = h3.latlng_to_cell(lat, lon, resolucion)
