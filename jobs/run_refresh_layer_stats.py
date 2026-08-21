@@ -1,5 +1,6 @@
 import json
 import os
+import re
 import sys
 from datetime import datetime, timezone
 
@@ -13,6 +14,12 @@ OPERATIONS_WITHOUT_FIELD = {'count', 'count_where'}
 COMBINATOR_OPS = {'add', 'sub', 'mul', 'div', 'percent', 'percent_change'}
 STATS_OPERATIONS = PRIMITIVE_OPERATIONS | {'formula', 'static'}
 MAX_EXPRESSION_DEPTH = 6
+FILTER_OPS = {'eq', 'in', 'gte', 'lte', 'between', 'is_not_null'}
+CONTEXT_KEYS = {'municipio.claves', 'municipio.nombres', 'fecha.inicio', 'fecha.fin'}
+SQL_COMPARATORS = {'eq': '=', 'gte': '>=', 'lte': '<='}
+MAX_FILTERS = 6
+
+_PLACEHOLDER = re.compile(r'^\{\{([a-z_.]+)\}\}$')
 
 
 def _is_identifier(value) -> bool:
@@ -23,7 +30,105 @@ def _is_identifier(value) -> bool:
     return all(c.isalnum() or c == '_' for c in value)
 
 
-def _build_query(cfg: dict) -> tuple[str, dict] | None:
+def _placeholder_key(value) -> str | None:
+    if not isinstance(value, str):
+        return None
+    match = _PLACEHOLDER.match(value.strip())
+    return match.group(1) if match else None
+
+
+def _resolve_context(value, context: dict | None) -> tuple[object, bool]:
+    key = _placeholder_key(value)
+    if key is None:
+        return value, True
+    if key not in CONTEXT_KEYS:
+        return None, False
+    resolved = (context or {}).get(key)
+    if resolved is None:
+        return None, False
+    if isinstance(resolved, (list, tuple)) and not resolved:
+        return None, False
+    return resolved, True
+
+
+def _valid_filters(raw, context: dict | None) -> list[dict] | None:
+    if raw is None:
+        return []
+    if not isinstance(raw, list) or len(raw) > MAX_FILTERS:
+        return None
+    for item in raw:
+        if not isinstance(item, dict):
+            return None
+        if not _is_identifier(item.get('field')):
+            return None
+        if item.get('op') not in FILTER_OPS:
+            return None
+    return raw
+
+
+def _build_conditions(filters: list[dict], context: dict | None, params: dict) -> list[str]:
+    conditions: list[str] = []
+    for i, item in enumerate(filters):
+        field = item['field']
+        op = item['op']
+        if op == 'is_not_null':
+            conditions.append(f'"{field}" IS NOT NULL')
+            continue
+
+        value = item.get('value')
+        if value is None:
+            continue
+
+        if op == 'between':
+            bounds = value if isinstance(value, list) else [value]
+            resolved = [_resolve_context(v, context) for v in bounds]
+            if len(resolved) != 2 or not all(ok for _, ok in resolved):
+                continue
+            low, high = f'f{i}_lo', f'f{i}_hi'
+            params[low], params[high] = resolved[0][0], resolved[1][0]
+            conditions.append(f'"{field}" BETWEEN :{low} AND :{high}')
+            continue
+
+        if op == 'in':
+            raw = value if isinstance(value, list) else [value]
+            expanded = []
+            for entry in raw:
+                item_value, ok = _resolve_context(entry, context)
+                if not ok:
+                    continue
+                if isinstance(item_value, (list, tuple)):
+                    expanded.extend(item_value)
+                else:
+                    expanded.append(item_value)
+            if not expanded:
+                continue
+            names = []
+            for j, entry in enumerate(expanded):
+                name = f'f{i}_{j}'
+                params[name] = entry
+                names.append(f':{name}')
+            conditions.append(f'"{field}" IN ({", ".join(names)})')
+            continue
+
+        resolved, ok = _resolve_context(value, context)
+        if not ok:
+            continue
+        name = item.get('param') or f'f{i}'
+        params[name] = resolved
+        conditions.append(f'"{field}" {SQL_COMPARATORS[op]} :{name}')
+    return conditions
+
+
+def _effective_filters(cfg: dict, filters: list[dict]) -> list[dict]:
+    where_field = cfg.get('where_field')
+    where_value = cfg.get('where_value')
+    if where_field and where_value is not None:
+        legacy = {'field': where_field, 'op': 'eq', 'value': where_value, 'param': 'where_value'}
+        return [legacy] + filters
+    return filters
+
+
+def _build_query(cfg: dict, context: dict | None = None) -> tuple[str, dict] | None:
     op = cfg.get('operation')
     if op not in PRIMITIVE_OPERATIONS:
         return None
@@ -46,30 +151,27 @@ def _build_query(cfg: dict) -> tuple[str, dict] | None:
     if order_field and not _is_identifier(order_field):
         return None
 
+    filters = _valid_filters(cfg.get('filters'), context)
+    if filters is None:
+        return None
+    if op == 'count_where' and not filters and (not where_field or where_value is None):
+        return None
+    if op == 'latest' and not order_field:
+        return None
+
     fqtn = f'"{schema}"."{table}"'
     params: dict = {}
+    conditions = _build_conditions(_effective_filters(cfg, filters), context, params)
+    where = f' WHERE {" AND ".join(conditions)}' if conditions else ''
 
-    if op == 'count':
-        sql = f'SELECT COUNT(*) FROM {fqtn}'
+    if op in ('count', 'count_where'):
+        sql = f'SELECT COUNT(*) FROM {fqtn}{where}'
     elif op == 'count_distinct':
-        sql = f'SELECT COUNT(DISTINCT "{field}") FROM {fqtn}'
-    elif op == 'count_where':
-        if not where_field or where_value is None:
-            return None
-        sql = f'SELECT COUNT(*) FROM {fqtn} WHERE "{where_field}" = :where_value'
-        params['where_value'] = where_value
-    elif op == 'sum':
-        sql = f'SELECT SUM("{field}") FROM {fqtn}'
-    elif op == 'avg':
-        sql = f'SELECT AVG("{field}") FROM {fqtn}'
-    elif op == 'min':
-        sql = f'SELECT MIN("{field}") FROM {fqtn}'
-    elif op == 'max':
-        sql = f'SELECT MAX("{field}") FROM {fqtn}'
+        sql = f'SELECT COUNT(DISTINCT "{field}") FROM {fqtn}{where}'
+    elif op in ('sum', 'avg', 'min', 'max'):
+        sql = f'SELECT {op.upper()}("{field}") FROM {fqtn}{where}'
     elif op == 'latest':
-        if not order_field:
-            return None
-        sql = f'SELECT "{field}" FROM {fqtn} ORDER BY "{order_field}" DESC LIMIT 1'
+        sql = f'SELECT "{field}" FROM {fqtn}{where} ORDER BY "{order_field}" DESC LIMIT 1'
     else:
         return None
     return sql, params
