@@ -10,7 +10,7 @@ Todos en UTC del contenedor (`cron -f`). Logs: `/var/log/cron.log` (tail con `ma
 |---|---|---|
 | 03:00 | `run_refresh_periodicity.py` | Invoca `SELECT public.refresh_layer_periodicity()` y cuenta filas de `public.layer_periodicity` |
 | 04:00 | `run_refresh_layer_tree.py` | Reconstruye JSON del arbol, calcula ETag y upsertea `mapalab.layer_tree_cache` (singleton id=1) |
-| 04:15 | `run_refresh_hexbin.py` | Precalcula los conteos H3 de las capas de puntos en r3/r4/r6/r7 y los upsertea en `mapalab.hexbin_cells` y `mapalab.hexbin_counts`. Lee por WFS con el `cql_filter` del catalogo |
+| 04:15 | `run_refresh_hexbin.py` | Precalcula los conteos H3 de las capas de puntos en r3/r4/r6/r7 y los upsertea en `mapalab.hexbin_cells` y `mapalab.hexbin_counts`. Lee por WFS con el `cql_filter` del catalogo. Con `--pendientes` procesa solo las capas sin conteos; asi lo llama `make migrate` |
 | 04:30 | `run_refresh_layer_stats.py` | Evalua `stats_config` de cada `mapalab.layer_stats` via template catalog, guarda `values` + `values_refreshed_at` |
 
 > ⚠️ `run_refresh_layer_tree.py` **duplica** el serializador del backend mapalab (`backend/app/services/layer_tree_service.py::_layer_to_dict`). Ambos deben emitir los mismos campos del nodo. Si al backend se le agrega un campo de capa (p. ej. `highlightColor`/`highlightShape`, `badge`, `iconOverrides`) y aquí no, este cron **sobrescribe cada noche** el caché bueno con uno sin ese campo y la config hecha en el editor "desaparece" en el visor. Al tocar uno, replicar en el otro.

@@ -1,6 +1,7 @@
 import json
 import math
 import os
+import sys
 import unicodedata
 from collections import defaultdict
 from typing import Any, Optional
@@ -25,6 +26,7 @@ TIMEOUT_SEGUNDOS = 300
 
 
 def main() -> int:
+    solo_pendientes = '--pendientes' in sys.argv
     url = _build_url()
     if not url:
         Logger.error('DATAENGINE connection no configurada')
@@ -35,15 +37,29 @@ def main() -> int:
         Logger.error('GEOSERVER_URL no configurada')
         return 1
 
-    Logger.info('⬢  Precalculando el hexbin H3 de las capas de puntos...')
+    if solo_pendientes:
+        Logger.info('⬢  Precalculando el hexbin H3 de las capas de puntos sin conteos...')
+    else:
+        Logger.info('⬢  Precalculando el hexbin H3 de las capas de puntos...')
     engine = create_engine(url)
     procesadas = 0
     fallidas: list[str] = []
 
     try:
         with engine.begin() as conn:
-            capas = _fetch_layers(conn)
+            capas = _fetch_layers(conn, solo_pendientes)
+            sin_clasificar = _sin_clasificar(conn)
             municipios = _municipios(conn)
+
+        if sin_clasificar:
+            Logger.warning(
+                f'⚠️  {sin_clasificar} capas sin geometry_type: corre '
+                'run_backfill_geometry_type.py o quedaran fuera del hexbin'
+            )
+
+        if not capas:
+            Logger.info('✅  Nada pendiente')
+            return 0
 
         for capa in capas:
             typename = _typename(capa)
@@ -86,10 +102,24 @@ def _build_url() -> Optional[str]:
     return f'postgresql://{user}:{pwd}@{host}:{port}/{db}?sslmode={sslmode}'
 
 
-def _fetch_layers(conn) -> list[dict[str, Any]]:
+def _sin_clasificar(conn) -> int:
+    return conn.execute(text("""
+        SELECT count(*) FROM mapalab.layers
+         WHERE deleted_at IS NULL
+           AND node_type = 'leaf'
+           AND geoserver_layer IS NOT NULL
+           AND geometry_type IS NULL
+    """)).scalar() or 0
+
+
+def _fetch_layers(conn, solo_pendientes: bool = False) -> list[dict[str, Any]]:
     cols = ['id', 'workspace_alias', 'geoserver_workspace', 'geoserver_layer',
             'wfs_layer_name', 'cql_filter']
-    rows = conn.execute(text("""
+    pendientes = """
+           AND NOT EXISTS (SELECT 1 FROM mapalab.hexbin_counts c
+                            WHERE c.layer_key = l.id)
+    """ if solo_pendientes else ''
+    rows = conn.execute(text(f"""
         SELECT l.id, l.workspace_alias, w.geoserver_workspace, l.geoserver_layer,
                l.wfs_layer_name, l.cql_filter
           FROM mapalab.layers l
@@ -99,6 +129,7 @@ def _fetch_layers(conn) -> list[dict[str, Any]]:
            AND l.geometry_type = 'point'
            AND l.wfs_available
            AND l.geoserver_layer IS NOT NULL
+           {pendientes}
          ORDER BY l.id
     """)).fetchall()
     capas = [dict(zip(cols, r)) for r in rows]

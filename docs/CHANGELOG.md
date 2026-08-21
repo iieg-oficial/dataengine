@@ -6,6 +6,43 @@ El formato esta basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.
 y este proyecto se adhiere a [Versionado Semantico](https://semver.org/lang/es/). El versionado
 de `dataengine` es independiente del de MapaLab.
 
+## [1.37.0] - 2026-08-21
+
+### Agregado: `make migrate` deja el catalogo listo, no solo migrado
+
+Restaurar un dump viejo y migrarlo dejaba la caracteristica del hexbin **muerta en silencio**. La
+migracion `0036_layer_geometry_type` crea la columna a proposito vacia —clasificar necesita hablar
+con GeoServer, que no es trabajo de una migracion— y delega el relleno a
+`run_backfill_geometry_type.py`. Si nadie lo corre, las 205 capas del catalogo quedan con
+`geometry_type IS NULL`, `run_refresh_hexbin.py` no encuentra ninguna capa de puntos y **termina con
+exit 0 diciendo «0 capas precalculadas»**. Para el orquestador eso es exito; para quien abre el
+visor, la caracteristica no existe.
+
+`migrate` ahora encadena los dos jobs despues del `alembic upgrade head`:
+
+- **Geometrias** — `run_backfill_geometry_type.py` completo. Su `UPDATE` lleva
+  `AND geometry_type IS DISTINCT FROM :tipo`, asi que no escribe si nada cambio. Medido: **2 s**
+  para 209 capas.
+- **Hexbin pendiente** — `run_refresh_hexbin.py --pendientes`.
+
+### Agregado: `run_refresh_hexbin.py --pendientes`
+
+Procesa solo las capas de puntos **sin filas en `hexbin_counts`**, para que el `migrate` no repita el
+recalculo completo. Sin la bandera el comportamiento no cambia: el cron de las 04:15 sigue
+reagregando todo.
+
+Medido en el mismo catalogo: **2 min** la corrida completa (91 capas), **0.38 s** la de pendientes
+cuando no hay nada nuevo.
+
+El job ademas **avisa de las capas sin `geometry_type`** en vez de ignorarlas, que era la forma en que
+el fallo pasaba desapercibido.
+
+**Ojo:** «sin conteos» no es «pendiente». De 101 capas de puntos, 9 no producen ningun conteo (sin
+features, o sin campo de fecha o municipio con que agregar) y 1 falla por WFS
+(`salud:unidades_salud`, HTTP 400). Esas 10 se reintentan en cada `migrate` — barato, pero por eso el
+guardia vive en el job y no en un `if` del Makefile: contarlas desde afuera daria «faltan 10» para
+siempre y dispararia el recalculo completo en cada deploy.
+
 ## [1.36.0] - 2026-08-18
 
 ### Cambiado: el hexbin precalcula tambien las resoluciones 5 y 8
