@@ -6,6 +6,31 @@ El formato esta basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.
 y este proyecto se adhiere a [Versionado Semantico](https://semver.org/lang/es/). El versionado
 de `dataengine` es independiente del de MapaLab.
 
+## [1.39.0] - 2026-08-21
+
+### Agregado: `clave_municipio` en `espacios_publicos_y_lugares_recreativos` (migracion 0040)
+
+Seis capas del visor salen de esa tabla —plaza, mercado, instalacion deportiva o recreativa,
+centro comercial, instalacion gubernamental e instalacion de servicios— y ninguna se podia filtrar
+por municipio. En `mapalab.hexbin_counts` se veia como **6 222 puntos con `clave_municipio` nula**:
+todo el faltante del precalculado salvo una fila.
+
+**No hizo falta spatial join: la clave ya estaba en el dato.** `cvegeo` es el geocodigo INEGI a
+nivel manzana y sus primeros cinco digitos son la clave del municipio. Verificado sobre las 5 780
+filas: `left(cvegeo, 5)` empata con `mapalab.municipios.clave_geo` en el **100 %**, sin nulos,
+incluidas las seis filas de 13 caracteres.
+
+Por eso la columna es `GENERATED ALWAYS AS (left(cvegeo, 5)) STORED` y no un backfill: se deriva
+sola en cada alta y no puede quedar desalineada del `cvegeo` que la origina. Lleva indice btree.
+Probado contra la base en una transaccion revertida: 5 780 filas con clave, **125 municipios**,
+cero claves fuera del catalogo.
+
+**Faltan dos pasos que no son SQL**: declarar `municipio_field='clave_municipio'` y
+`municipio_field_type='clave'` en las seis capas desde mariachi, y correr `make refresh-layer-tree`.
+
+Las otras ocho capas sin desglose municipal son las `auto-eventos-*` del schema `eventos`, que no
+traen `cvegeo` ni campo de municipio. Suman ~442 puntos y si las necesitan requieren spatial join.
+
 ## [1.38.0] - 2026-08-21
 
 ### Agregado: `scripts/check-wfs-pagination.sh`
@@ -41,6 +66,43 @@ Cuando haya columna y la migracion cree indices, dos cosas mas: **va en ventana 
 —Alembic corre en transaccion, asi que no puede usar `CONCURRENTLY` y cada indice toma
 `ACCESS EXCLUSIVE` sobre su matview; la `0034` tardo 18 min 41 s sobre las 83— y **hay que
 recargar el datastore en GeoServer**, que resuelve la clave al cargar el featuretype y la cachea.
+
+### Agregado: `scripts/stats_read_grants.sql`
+
+Los GRANT de lectura que `mariachi_layers` necesita sobre los schemas tematicos —los que la
+migracion `0031_stats_read_grants` concede— **no sobreviven a un restore**. Restaurar un dump sobre
+una base ya migrada devuelve los privilegios al estado del dump sin tocar `alembic_version`, asi que
+`alembic current` sigue reportando la revision aplicada mientras los permisos ya no estan.
+
+El sintoma es asimetrico y despista: el cron de estadisticas corre como `gisuser` y calcula bien,
+pero el preview y el recalculo del panel de mariachi corren como `mariachi_layers` y responden 502
+`permission denied for schema`. Se detecto asi el 2026-08-21, con los grants caidos desde algun
+restore anterior.
+
+El script es el cuerpo `DO $$` de la migracion, extraido para reejecutarlo sin tocar
+`alembic_version`. Es idempotente y deriva los schemas de `mapalab.workspaces`, de modo que sigue al
+catalogo real de cada entorno. Se corre despues de cada restore:
+
+```bash
+docker exec dataengine-primary sh -c '
+  PGPASSWORD=$(cat "$POSTGRES_PASSWORD_FILE") \
+  psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -v ON_ERROR_STOP=1 \
+       -f /scripts/stats_read_grants.sql'
+```
+
+Termina imprimiendo una fila por workspace del catalogo: todas deben decir `t`.
+
+### Corregido: `count_where` exigia una columna que no usaba
+
+`_build_query` arma el `count_where` como `SELECT COUNT(*) … WHERE "<where_field>" = :valor` y nunca
+toca `field`, pero la validacion lo pedia para toda operacion distinta de `count`. El mismo cambio
+va en `mariachi/api/app/services/stats_templates.py`: el motor esta duplicado a proposito entre los
+dos repos y una regla que solo cambie de un lado hace que el cron descarte lo que el CMS guarda.
+
+De paso, `field` ahora se valida como identificador **cuando viene presente**, tambien en las
+operaciones que no lo requieren. Antes un `field` con contenido arbitrario pasaba sin revisar si la
+operacion no lo necesitaba; no era explotable —nunca llegaba al SQL— pero era una diferencia
+gratuita con el motor de mariachi, que si lo validaba.
 
 ## [1.37.0] - 2026-08-21
 
