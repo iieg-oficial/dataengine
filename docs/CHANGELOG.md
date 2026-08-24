@@ -8,6 +8,29 @@ de `dataengine` es independiente del de MapaLab.
 
 ## [1.40.0] - 2026-08-24
 
+### Agregado: declarar el campo de municipio en las capas (migracion 0043)
+
+Las migraciones `0023`, `0040`, `0041` y `0042` dejaron el dato en la base, pero **ninguna declaraba
+nada en `mapalab.layers`**. Sin `has_municipio`, `municipio_field` y `municipio_field_type` el visor
+sigue recortando por `BBOX`, asi que el trabajo de las cuatro no se notaba. Esa configuracion se
+edita desde mariachi, pero son mas de 180 capas: a mano no es reproducible entre entornos.
+
+**No trae una lista de ids.** Recorre las capas vivas, resuelve su tabla via `mapalab.workspaces` y
+elige el campo comprobando **los valores contra `mapalab.municipios`**, no el nombre de la columna.
+Acepta una candidata solo si al menos el 90 % de sus valores distintos empata: por `clave_geo` las
+de clave, por nombre normalizado las de nombre. Prefiere siempre la clave.
+
+Esa comprobacion sale de dos casos reales que el nombre de columna habria dado por buenos:
+`mapa_base.cabeceras_municipales` tenia un `clave_municipio` **sin prefijo de estado** —`01`, `02`—
+que no empata con ninguna clave de cinco digitos, y en trece capas —aeropuertos, cuerpos de agua,
+rutas de eventos— `nombre` es el nombre **del propio elemento**.
+
+Validada contra las 203 capas resolubles del catalogo, comparando su eleccion con la que se hizo a
+mano tras probar el CQL real por WFS: **203 coincidencias, 0 discrepancias**, incluidos los rechazos.
+
+Idempotente: solo toca las capas que aun no declaran nada. Despues hay que recargar el catalogo de
+GeoServer y correr `run_refresh_layer_tree.py`.
+
 ### Agregado: `clave_municipio` por coordenada en trece capas de puntos (migracion 0042)
 
 Estaciones y paradas de transporte, estaciones MiBici, aeropuertos y los puntos de eventos no
@@ -47,11 +70,11 @@ existente aqui.
 Columna generada, como en la `0040`: `'14' || lpad(clave_municipio, 3, '0')`. Verificado sobre las
 125 filas, empata al 100 %, de `14001` a `14125`. Aplicada y comprobada por WFS.
 
-**Va antes que la `0043` a proposito.** La `0043` reescribe 39 GB y necesita ventana; esta cuesta
+**Va antes que la `0044` a proposito.** La `0044` reescribe 39 GB y necesita ventana; esta cuesta
 125 filas. Encadenarlas al reves obligaba a esperar a la pesada para tener la barata.
 
 
-### Agregado: migracion `0043_matviews_fid` — el identificador que faltaba para paginar
+### Agregado: migracion `0044_matviews_fid` — el identificador que faltaba para paginar
 
 **El gate quedo cerrado.** El analisis del 2026-07-31 dejo abierto si GeoTools acepta un indice
 unico sobre una vista materializada como clave, o si hacia falta `gt_pk_metadata`. Comprobado el
