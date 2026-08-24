@@ -8,7 +8,26 @@ de `dataengine` es independiente del de MapaLab.
 
 ## [1.40.0] - 2026-08-24
 
-### Agregado: migracion `0041_matviews_fid` — el identificador que faltaba para paginar
+### Agregado: columna `clave_geo` en `mapa_base.cabeceras_municipales` (migracion 0041)
+
+La tabla ya traia `clave_municipio`, pero **sin el prefijo de estado**: `varchar(3)` con valores
+`01`, `02`, `125`. El visor filtra con la clave INEGI de cinco digitos, asi que
+`clave_municipio IN ('14039','14120')` no empataba con ninguna fila.
+
+Se detecto al probar el CQL real contra cada tabla antes de declararla en el catalogo: **por
+nombre de columna esta habria pasado como buena**, y la capa se habria vaciado al elegir municipio
+en vez de mostrar de mas. El nombre `clave_geo` es el que usa el resto del ecosistema
+—`mapalab.municipios.clave_geo`— y el que el plan `clave-municipio-en-tablas.md` ya daba por
+existente aqui.
+
+Columna generada, como en la `0040`: `'14' || lpad(clave_municipio, 3, '0')`. Verificado sobre las
+125 filas, empata al 100 %, de `14001` a `14125`. Aplicada y comprobada por WFS.
+
+**Va antes que la `0042` a proposito.** La `0042` reescribe 39 GB y necesita ventana; esta cuesta
+125 filas. Encadenarlas al reves obligaba a esperar a la pesada para tener la barata.
+
+
+### Agregado: migracion `0042_matviews_fid` — el identificador que faltaba para paginar
 
 **El gate quedo cerrado.** El analisis del 2026-07-31 dejo abierto si GeoTools acepta un indice
 unico sobre una vista materializada como clave, o si hacia falta `gt_pk_metadata`. Comprobado el
