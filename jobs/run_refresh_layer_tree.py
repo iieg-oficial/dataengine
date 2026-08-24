@@ -79,7 +79,8 @@ _LAYER_COLS = [
     'raster_periodicity', 'hide_periodicity',
     'default_zoom', 'zoom_range',
     'search_tags', 'searchable_fields',
-    'has_municipio', 'has_direccion', 'municipio_field', 'direccion_field',
+    'has_municipio', 'has_direccion', 'municipio_field', 'municipio_field_type',
+    'direccion_field',
     'infobox_template', 'infobox_config',
     'icon_url', 'icon_overrides',
     'notice', 'badge',
@@ -169,6 +170,8 @@ def _layer_to_search_meta(layer: dict) -> Optional[dict]:
         meta['hasMunicipio'] = True
         if layer.get('municipio_field'):
             meta['municipioField'] = layer['municipio_field']
+        if layer.get('municipio_field_type'):
+            meta['municipioFieldType'] = layer['municipio_field_type']
     if layer.get('has_direccion'):
         meta['hasDireccion'] = True
         if layer.get('direccion_field'):
