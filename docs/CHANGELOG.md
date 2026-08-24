@@ -8,6 +8,31 @@ de `dataengine` es independiente del de MapaLab.
 
 ## [1.40.0] - 2026-08-24
 
+### Corregido: 195 parcelas de cultivo de la ribera de Chapala sin municipio (migracion 0044)
+
+La `0023` dejo `economia.cultivos` en 99.40 % con **2 068 parcelas en `NULL`**, anotadas entonces
+como "borde y costa". Medidas ahora, son **dos cosas distintas** y solo una era un hueco:
+
+| | Parcelas | Hectareas | Que son |
+|---|---|---|---|
+| Fuera del limite estatal | **1 873** (90.6 %) | 3 317.9 | La capa cubre terreno de estados vecinos. `NULL` es correcto |
+| Dentro de Jalisco | **195** (9.4 %) | 615.6 | Hueco real del mosaico municipal |
+
+Las 195 se concentran en cuatro municipios riberenos de Chapala —**183 de Jamay**, mas Jocotepec,
+Tizapan el Alto y Tuxcueca—: tierra de cauce recuperado que ningun poligono municipal cubre. Estan
+entre 9 m y 1 311 m del municipio mas cercano.
+
+**El criterio es la pertenencia al estado, no una tolerancia en metros.** Un umbral fijo habria
+rescatado parcelas de Zacatecas a 50 m de la frontera y dejado fuera las de Jamay a 1.3 km, que son
+justo las que si son de Jalisco. Se asignan por vecino mas cercano con `<->`, acotando a las que
+`mapa_base.limite_estatal` contiene.
+
+Cobertura: **99.40 % -> 99.46 %**. Las 1 873 de fuera se quedan en `NULL` a proposito.
+
+**Queda un pendiente que no es de esta migracion:** el mosaico de `mapa_base.limite_municipal`
+tiene huecos dentro del estado en la ribera de Chapala. Lo correcto a mediano plazo es corregir el
+limite, no parchar cada capa que caiga en el hueco.
+
 ### Agregado: declarar el campo de municipio en las capas (migracion 0043)
 
 Las migraciones `0023`, `0040`, `0041` y `0042` dejaron el dato en la base, pero **ninguna declaraba
@@ -70,11 +95,11 @@ existente aqui.
 Columna generada, como en la `0040`: `'14' || lpad(clave_municipio, 3, '0')`. Verificado sobre las
 125 filas, empata al 100 %, de `14001` a `14125`. Aplicada y comprobada por WFS.
 
-**Va antes que la `0044` a proposito.** La `0044` reescribe 39 GB y necesita ventana; esta cuesta
+**Va antes que la `0045` a proposito.** La `0045` reescribe 39 GB y necesita ventana; esta cuesta
 125 filas. Encadenarlas al reves obligaba a esperar a la pesada para tener la barata.
 
 
-### Agregado: migracion `0044_matviews_fid` — el identificador que faltaba para paginar
+### Agregado: migracion `0045_matviews_fid` — el identificador que faltaba para paginar
 
 **El gate quedo cerrado.** El analisis del 2026-07-31 dejo abierto si GeoTools acepta un indice
 unico sobre una vista materializada como clave, o si hacia falta `gt_pk_metadata`. Comprobado el

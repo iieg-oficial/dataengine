@@ -27,16 +27,16 @@ y los grants se leen del catalogo, porque este repo no declara estas vistas.
 **Pesada: 39 GB en 83 vistas.** Va en ventana de mantenimiento. Cada vista queda
 bloqueada mientras se reconstruye y `alembic` corre todo en una transaccion.
 
-Revision ID: 0044_matviews_fid
-Revises: 0043_declarar_municipio_en_capas
+Revision ID: 0045_matviews_fid
+Revises: 0044_cultivos_ribera_chapala
 Create Date: 2026-08-24
 """
 from alembic import op
 import sqlalchemy as sa
 
 
-revision = "0044_matviews_fid"
-down_revision = "0043_declarar_municipio_en_capas"
+revision = "0045_matviews_fid"
+down_revision = "0044_cultivos_ribera_chapala"
 branch_labels = None
 depends_on = None
 
