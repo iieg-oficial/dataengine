@@ -6,6 +6,35 @@ El formato esta basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.
 y este proyecto se adhiere a [Versionado Semantico](https://semver.org/lang/es/). El versionado
 de `dataengine` es independiente del de MapaLab.
 
+## [1.40.0] - 2026-08-24
+
+### Agregado: migracion `0041_matviews_fid` — el identificador que faltaba para paginar
+
+**El gate quedo cerrado.** El analisis del 2026-07-31 dejo abierto si GeoTools acepta un indice
+unico sobre una vista materializada como clave, o si hacia falta `gt_pk_metadata`. Comprobado el
+2026-08-24 publicando una matview de prueba con un unico indice sobre `fid`:
+`GetFeature&startIndex=5&count=2` devolvio **200** y los ids `pk_probe.6` y `pk_probe.7`. La
+heuristica sobre indices unicos basta; no hace falta `gt_pk_metadata`.
+
+Como ninguna de las 83 matviews trae `fid` —lo que convierte a la `0039` en un no-op— y sus
+columnas no forman llave natural, la migracion lo fabrica con `row_number() OVER ()`. Postgres no
+permite agregar una columna a una matview, asi que cada una se reconstruye envolviendo su propia
+definicion, se cambia por la original y se le devuelven indices y permisos, todo leido del
+catalogo porque este repo no declara estas vistas.
+
+**Dos trampas que costaron sendos bugs antes de quedar bien:**
+
+- `information_schema` **no incluye vistas materializadas**. Leer de ahi los grants devuelve vacio
+  y la reconstruccion se lleva en silencio el `SELECT` de `mariachi_layers`. Se leen de
+  `pg_class.relacl` con `aclexplode`.
+- Una matview **no admite `ALTER ... DROP COLUMN`**, asi que el `downgrade` no puede quitar `fid`
+  a posteriori: reconstruye con la lista explicita de columnas.
+
+**Sin aplicar. Va en ventana de mantenimiento: son 39 GB en 83 vistas**, no los ~1.25 GB que
+estimaba el analisis original. Cada vista queda bloqueada mientras se reconstruye y alembic corre
+todo en una transaccion. A favor: **cero dependencias entre matviews**, asi que no hay orden que
+respetar. Conviene medirla primero sobre `delitos_fiscalia_robo_bancos`, la mas chica con 56 kB.
+
 ## [1.39.0] - 2026-08-21
 
 ### Agregado: `clave_municipio` en `espacios_publicos_y_lugares_recreativos` (migracion 0040)
