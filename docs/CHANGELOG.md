@@ -8,6 +8,30 @@ de `dataengine` es independiente del de MapaLab.
 
 ## [1.40.0] - 2026-08-24
 
+### Agregado: `clave_municipio` por coordenada en trece capas de puntos (migracion 0042)
+
+Estaciones y paradas de transporte, estaciones MiBici, aeropuertos y los puntos de eventos no
+tenian forma de identificar su municipio: el visor los recortaba con el `BBOX` de la seleccion y el
+job del hexbin los contaba con `clave_municipio` nula.
+
+A diferencia de la `0040` y la `0041`, estas tablas **no traen ningun codigo del que derivarla**,
+asi que aqui si toca calcularla: spatial join punto-en-poligono contra `mapa_base.limite_municipal`
+con `ST_PointOnSurface`, el mismo camino de la `0023` para `economia.cultivos`. Las trece tablas y
+el limite estan en EPSG:6368, sin reproyeccion de por medio.
+
+Un punto pertenece a un solo municipio, asi que **no hay nada que decidir**. Eso separa este caso
+del de las capas lineales y poligonales, donde un 5-6 % de los features cruza mas de un municipio
+—medido: 550 de 9 107 en `caminos_2012`, 962 de 19 756 en una muestra de `itur_iieg`, maximo tres
+municipios en ambas— y hay que elegir entre duplicar la fila o quedarse con una. Esa decision sigue
+abierta.
+
+Son 699 filas entre las trece, todas resueltas. Aplicada y comprobada por WFS: `estaciones_mibici`
+devuelve 368 de 384 al filtrar por Guadalajara y Zapopan.
+
+**Con esto el desglose del hexbin queda completo**: 90 de 91 capas con cobertura total y **un solo
+punto sin municipio** en 669 288 —una fila de `robos_negocio_con_violencia` con `municipio` nulo en
+el origen—, contra los 6 223 del 2026-08-21.
+
 ### Agregado: columna `clave_geo` en `mapa_base.cabeceras_municipales` (migracion 0041)
 
 La tabla ya traia `clave_municipio`, pero **sin el prefijo de estado**: `varchar(3)` con valores
@@ -23,11 +47,11 @@ existente aqui.
 Columna generada, como en la `0040`: `'14' || lpad(clave_municipio, 3, '0')`. Verificado sobre las
 125 filas, empata al 100 %, de `14001` a `14125`. Aplicada y comprobada por WFS.
 
-**Va antes que la `0042` a proposito.** La `0042` reescribe 39 GB y necesita ventana; esta cuesta
+**Va antes que la `0043` a proposito.** La `0043` reescribe 39 GB y necesita ventana; esta cuesta
 125 filas. Encadenarlas al reves obligaba a esperar a la pesada para tener la barata.
 
 
-### Agregado: migracion `0042_matviews_fid` — el identificador que faltaba para paginar
+### Agregado: migracion `0043_matviews_fid` — el identificador que faltaba para paginar
 
 **El gate quedo cerrado.** El analisis del 2026-07-31 dejo abierto si GeoTools acepta un indice
 unico sobre una vista materializada como clave, o si hacia falta `gt_pk_metadata`. Comprobado el
