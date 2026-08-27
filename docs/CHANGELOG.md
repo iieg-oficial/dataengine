@@ -6,6 +6,23 @@ El formato esta basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.
 y este proyecto se adhiere a [Versionado Semantico](https://semver.org/lang/es/). El versionado
 de `dataengine` es independiente del de MapaLab.
 
+## [1.41.0] - 2026-08-27
+
+### Agregado: el `/ontoy` declara a que nodo pertenece
+
+huachicol 2.9.0 amplio el contrato para que el monitor agrupe por servidor y no solo por servicio.
+`ONTOY_NODE` dice donde corre este repo —**S4**— y `ONTOY_NODE_REPORTER` decide quien habla del
+host. Es el reportero de su nodo, asi que su `/ontoy` agrega carga, RAM, swap y uptime, leidos de `/proc` sin exporters ni puertos nuevos.
+
+`ONTOY_PEER_CHECKS` queda disponible para las aristas entre nodos; vacia por omision.
+
+**Las dos primeras son obligatorias**: el compose falla si faltan, asi que hay que agregarlas al
+`.env` de cada entorno antes de desplegar.
+
+De paso, `ontoy_server.py` se sincroniza con el de huachicol, que es la fuente y llevaba tiempo
+divergiendo entre copias. Los checks de maquina quedan marcados como informativos y ya no tumban el
+estado del servicio.
+
 ## [1.40.0] - 2026-08-24
 
 ### Corregido: 195 parcelas de cultivo de la ribera de Chapala sin municipio (migracion 0044)
