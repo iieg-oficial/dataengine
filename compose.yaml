@@ -117,6 +117,7 @@ services:
     volumes:
       - ./VERSION:/app/VERSION:ro
       - /var/run/docker.sock:/var/run/docker.sock:ro
+      - /etc/os-release:/host/etc/os-release:ro
     environment:
       DATAENGINE_DB_USER: ${POSTGRES_USER:?}
       DATAENGINE_DB_PASSWORD: ${POSTGRES_PASSWORD:?}
