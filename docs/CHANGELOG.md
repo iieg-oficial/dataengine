@@ -6,6 +6,23 @@ El formato esta basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.
 y este proyecto se adhiere a [Versionado Semantico](https://semver.org/lang/es/). El versionado
 de `dataengine` es independiente del de MapaLab.
 
+## [1.42.0] - 2026-08-28
+
+### Agregado: schema `atributos` con la configuracion de columnas del visor
+
+La tabla de atributos de mapalab lee las columnas por WFS y le llegan con el nombre crudo de la
+base. `atributos.columnas` guarda por capa el alias, el orden, la visibilidad y el formato, que es
+lo unico de esa herramienta que necesita persistir: las filas y los conteos salen del WFS en cada
+consulta y no se cachean.
+
+Va en un schema propio y no en `mapalab` para separar la configuracion de una herramienta del visor
+del catalogo institucional. La bajada es un `DROP SCHEMA atributos CASCADE` que no roza ninguna
+tabla del catalogo.
+
+Los `GRANT` para `mariachi_layers` van en la misma revision —`USAGE` del schema, DML de las tablas y
+`USAGE` de las secuencias— mas un `ALTER DEFAULT PRIVILEGES` para que la siguiente tabla del schema
+no repita el clasico GET que funciona con POST que responde 500.
+
 ## [1.41.0] - 2026-08-27
 
 ### Agregado: el `/ontoy` declara a que nodo pertenece
