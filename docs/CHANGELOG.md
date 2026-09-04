@@ -6,6 +6,30 @@ El formato esta basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.
 y este proyecto se adhiere a [Versionado Semantico](https://semver.org/lang/es/). El versionado
 de `dataengine` es independiente del de MapaLab.
 
+## [1.43.0] - 2026-09-04
+
+### Agregado: la periodicidad alimenta la fecha y la frecuencia de la ficha
+
+La ficha de cada capa pide dos datos que el sistema ya conoce: cada cuanto se actualiza y cuando fue
+la ultima vez. Se capturaban a mano en las 130 fichas y **85 capas con periodicidad calculada los
+tenian vacios**.
+
+`public.layer_periodicity` ya sabe, para cada tabla con columna `fecha`, todos los periodos que
+existen: la llena este mismo job cada noche. De ahi salen los dos datos sin consultar nada nuevo.
+
+La migracion `0047` agrega a `mapalab.layer_metadata` las columnas `fecha_ultima_sugerida`,
+`frecuencia_sugerida` y `sugerencias_actualizadas_en`, y `run_refresh_periodicity.py` las escribe
+despues de refrescar la periodicidad.
+
+**El job nunca toca `fecha_ultima` ni `frecuencia`.** Lo capturado a mano gana: sin esa separacion
+no habria manera de distinguir «nadie lo ha llenado» de «alguien decidio este valor», y una
+correccion deliberada se perderia en el refresh de la noche. El editor de mariachi ofrece la
+sugerencia con una bombilla y aplicarla es una accion explicita de la persona.
+
+La frecuencia se deduce de la **mediana de las brechas** entre fechas consecutivas, no de contar
+entradas por año: una serie con huecos —lo normal en datos historicos— desordena el conteo y no la
+mediana. Con un solo periodo no sugiere frecuencia, porque no hay brecha que medir.
+
 ## [1.42.0] - 2026-08-28
 
 ### Agregado: schema `atributos` con la configuracion de columnas del visor
