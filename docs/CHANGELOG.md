@@ -470,6 +470,34 @@ en el `.env`.
 
 `run_refresh_layer_tree.py` publica el campo como `geometryType` en el árbol. Sin eso, el cron de
 las 4:00 reconstruiría la caché sin el dato y el ícono desaparecería del visor cada madrugada.
+## [1.32.3] - 2026-09-11
+
+### Agregado: las fechas anuales de las tarjetitas se muestran como año (migración 0035a)
+
+El visor de mapalab (1.116.17) acepta `formato: 'anio'` por campo. Esta migración lo pone donde
+hace falta para que nadie tenga que marcar capa por capa.
+
+Dos criterios. En los **renglones de lista** sobre `fecha`, cuando la etiqueta empieza con «Año»:
+la etiqueta ya dice que se quiere el año. En las **etiquetas de un grupo** sobre `fecha`, cuando la
+capa es anual, o sea que en `public.layer_periodicity` solo tiene fechas en 01-01 o 12-31: un badge
+no tiene texto que lo diga, así que la granularidad sale del dato.
+
+Medido en seco contra la base local: **77 capas, 43 renglones y 34 etiquetas**. `catalogo_capas`
+hoy no tiene tarjetas propias. Aplicarla dos veces no cambia nada y el `downgrade` deja cada
+configuración idéntica a como estaba. Las capas mensuales no se tocan.
+
+La llave de la periodicidad es `db_schema:geoserver_layer`, la misma que usa el backend del visor.
+Con el alias del workspace no casan capas como las de `general`, cuyo esquema es `mapa_base`.
+
+**Borra `mapalab.layer_tree_cache`**, como la `0035`: sin eso el visor sigue viendo la
+configuración anterior.
+
+**El id no es numérico a propósito.** En `tamal-rojo` la `0036_layer_geometry_type` también sale de
+la `0035`, así que un `0036` aquí chocaría. Al propagar a rojo hace falta una revisión de merge.
+
+**Al desplegar:** `make migrate`. No importa si corre antes o después del visor: el visor anterior
+ignora la llave `formato` y una etiqueta convertida de `'fecha'` a `{ field, formato }` se sigue
+pintando igual.
 
 ## [1.32.2] - 2026-08-10
 
