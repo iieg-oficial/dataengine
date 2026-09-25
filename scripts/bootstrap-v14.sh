@@ -59,7 +59,10 @@ source "$REPO_ROOT/.env"
 set +a
 
 : "${POSTGRES_USER:?POSTGRES_USER no esta en .env}"
-: "${POSTGRES_PASSWORD:?POSTGRES_PASSWORD no esta en .env}"
+if [ -z "${POSTGRES_PASSWORD:-}" ] && [ -r "$REPO_ROOT/secrets/dataengine_postgres_password" ]; then
+    POSTGRES_PASSWORD="$(cat "$REPO_ROOT/secrets/dataengine_postgres_password")"
+fi
+: "${POSTGRES_PASSWORD:?POSTGRES_PASSWORD no esta en .env ni en secrets/dataengine_postgres_password}"
 : "${POSTGRES_DB:?POSTGRES_DB no esta en .env}"
 
 PRIMARY_SERVICE="postgres-primary"
@@ -108,8 +111,10 @@ if [ $SKIP_ROLE -eq 0 ]; then
         if [ -n "$PROVIDED_PASSWORD" ]; then
             ML_PASSWORD="$PROVIDED_PASSWORD"
             if [ $DRY_RUN -eq 0 ]; then
-                _exec_primary psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c \
-                    "ALTER ROLE mariachi_layers WITH PASSWORD '${ML_PASSWORD}'" >/dev/null
+                _exec_primary psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" \
+                    -c "SET log_statement = 'none'" \
+                    -c "SET log_min_error_statement = 'panic'" \
+                    -c "ALTER ROLE mariachi_layers WITH PASSWORD '${ML_PASSWORD}'" >/dev/null
                 echo "  Password del rol actualizada."
             fi
         fi
@@ -119,6 +124,8 @@ if [ $SKIP_ROLE -eq 0 ]; then
             echo "  [dry-run] CREATE ROLE mariachi_layers WITH LOGIN PASSWORD '<generado>'"
         else
             _exec_primary psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" <<SQL
+SET log_statement = 'none';
+SET log_min_error_statement = 'panic';
 CREATE ROLE mariachi_layers WITH LOGIN PASSWORD '${ML_PASSWORD}';
 GRANT CONNECT ON DATABASE ${POSTGRES_DB} TO mariachi_layers;
 ALTER ROLE mariachi_layers SET search_path = mapalab, public;

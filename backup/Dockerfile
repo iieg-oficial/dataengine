@@ -1,8 +1,6 @@
 FROM postgis/postgis:18-3.6-alpine
 
-RUN apk add --no-cache curl && \
-    curl -fsSL -o /usr/local/bin/mc https://dl.min.io/client/mc/release/linux-amd64/mc && \
-    chmod +x /usr/local/bin/mc
+RUN apk add --no-cache rclone age
 
 RUN mkdir -p /backups && chmod 700 /backups
 

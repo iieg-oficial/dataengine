@@ -23,32 +23,39 @@
 \set ON_ERROR_STOP on
 
 DO $$
-DECLARE target_schema text;
+DECLARE
+    target_schema text;
+    target_role text;
 BEGIN
-    IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'mariachi_layers') THEN
-        RAISE NOTICE 'rol mariachi_layers no existe, se omiten los grants';
-        RETURN;
-    END IF;
+    FOREACH target_role IN ARRAY ARRAY['mariachi_layers', 'mapalab_stats'] LOOP
+        IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = target_role) THEN
+            RAISE NOTICE 'rol % no existe, se omiten sus grants', target_role;
+            CONTINUE;
+        END IF;
 
-    FOR target_schema IN
-        SELECT DISTINCT w.db_schema
-        FROM mapalab.workspaces w
-        JOIN information_schema.schemata i ON i.schema_name = w.db_schema
-        WHERE w.db_schema IS NOT NULL AND w.db_schema <> 'mapalab'
-    LOOP
-        EXECUTE format('GRANT USAGE ON SCHEMA %I TO mariachi_layers', target_schema);
-        EXECUTE format('GRANT SELECT ON ALL TABLES IN SCHEMA %I TO mariachi_layers', target_schema);
-        EXECUTE format(
-            'ALTER DEFAULT PRIVILEGES IN SCHEMA %I GRANT SELECT ON TABLES TO mariachi_layers',
-            target_schema
-        );
-        RAISE NOTICE 'grants aplicados sobre %', target_schema;
+        FOR target_schema IN
+            SELECT DISTINCT w.db_schema
+            FROM mapalab.workspaces w
+            JOIN information_schema.schemata i ON i.schema_name = w.db_schema
+            WHERE w.db_schema IS NOT NULL AND w.db_schema <> 'mapalab'
+        LOOP
+            EXECUTE format('GRANT USAGE ON SCHEMA %I TO %I', target_schema, target_role);
+            EXECUTE format('GRANT SELECT ON ALL TABLES IN SCHEMA %I TO %I', target_schema, target_role);
+            EXECUTE format(
+                'ALTER DEFAULT PRIVILEGES IN SCHEMA %I GRANT SELECT ON TABLES TO %I',
+                target_schema, target_role
+            );
+            RAISE NOTICE 'grants aplicados sobre % para %', target_schema, target_role;
+        END LOOP;
     END LOOP;
 END $$;
 
 -- Verificacion: una fila por workspace del catalogo, todas en true.
 SELECT w.db_schema AS schema,
-       has_schema_privilege('mariachi_layers', w.db_schema, 'USAGE') AS usage_ok
+       has_schema_privilege('mariachi_layers', w.db_schema, 'USAGE') AS usage_ok,
+       CASE WHEN EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'mapalab_stats')
+            THEN has_schema_privilege('mapalab_stats', w.db_schema, 'USAGE')
+       END AS stats_usage_ok
 FROM (SELECT DISTINCT db_schema FROM mapalab.workspaces WHERE db_schema <> 'mapalab') w
 JOIN information_schema.schemata i ON i.schema_name = w.db_schema
 ORDER BY 1;

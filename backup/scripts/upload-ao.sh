@@ -9,8 +9,24 @@ if [ -z "$AO_BUCKET" ] || [ -z "$AO_ACCESS_KEY" ]; then
     exit 0
 fi
 
-mc alias set acervo "$AO_ENDPOINT" "$AO_ACCESS_KEY" "$AO_SECRET_KEY"
+if [ -z "$BACKUP_AGE_RECIPIENT" ]; then
+    echo "BACKUP_AGE_RECIPIENT no definido: no se sube un respaldo sin cifrar" >&2
+    exit 1
+fi
 
-mc cp "$FILEPATH" "acervo/${AO_BUCKET}/${FILENAME}"
+umask 077
+ENCRYPTED="${FILEPATH}.age"
+trap 'rm -f "$ENCRYPTED"' EXIT
 
-echo "Uploaded to Acervo: ${AO_BUCKET}/${FILENAME}"
+age -r "$BACKUP_AGE_RECIPIENT" -o "$ENCRYPTED" "$FILEPATH"
+
+export RCLONE_CONFIG_ACERVO_TYPE=s3
+export RCLONE_CONFIG_ACERVO_PROVIDER=Other
+export RCLONE_CONFIG_ACERVO_ENDPOINT="$AO_ENDPOINT"
+export RCLONE_CONFIG_ACERVO_ACCESS_KEY_ID="$AO_ACCESS_KEY"
+export RCLONE_CONFIG_ACERVO_SECRET_ACCESS_KEY="$AO_SECRET_KEY"
+export RCLONE_CONFIG_ACERVO_FORCE_PATH_STYLE=true
+
+rclone copyto --s3-no-check-bucket "$ENCRYPTED" "acervo:${AO_BUCKET}/${FILENAME}.age"
+
+echo "Uploaded to Acervo: ${AO_BUCKET}/${FILENAME}.age"

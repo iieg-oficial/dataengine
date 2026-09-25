@@ -8,6 +8,7 @@ from typing import Any, Optional
 from sqlalchemy import create_engine, text
 
 from core.utils.logger import Logger
+from core.utils.secretos import leer_secreto
 
 
 def main() -> int:
@@ -49,7 +50,7 @@ def _build_url() -> Optional[str]:
     if direct:
         return direct
     user = os.getenv('DATAENGINE_DB_USER')
-    pwd = os.getenv('DATAENGINE_DB_PASSWORD')
+    pwd = leer_secreto('DATAENGINE_DB_PASSWORD')
     host = os.getenv('DATAENGINE_DB_HOST')
     port = os.getenv('DATAENGINE_DB_PORT', '5432')
     db = os.getenv('DATAENGINE_DB_NAME')

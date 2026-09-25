@@ -16,7 +16,7 @@ FILEPATH="${BACKUP_DIR}/${FILENAME}"
 
 mkdir -p "$BACKUP_DIR"
 
-echo "postgres-primary:5432:*:${POSTGRES_USER}:${POSTGRES_PASSWORD}" > ~/.pgpass
+echo "postgres-primary:5432:*:${POSTGRES_USER}:$(cat "${POSTGRES_PASSWORD_FILE:?}")" > ~/.pgpass
 chmod 600 ~/.pgpass
 
 pg_dump $VERBOSE_FLAG \

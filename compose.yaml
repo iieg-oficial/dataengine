@@ -11,11 +11,6 @@ x-healthcheck: &healthcheck
   timeout: 5s
   retries: 5
 
-x-postgres-env: &postgres-env
-  POSTGRES_USER: ${POSTGRES_USER:?}
-  POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?}
-  POSTGRES_DB: ${POSTGRES_DB:?}
-
 x-postgres-env-file: &postgres-env-file
   POSTGRES_USER: ${POSTGRES_USER:?}
   POSTGRES_PASSWORD_FILE: /run/secrets/dataengine_postgres_password
@@ -34,6 +29,7 @@ services:
     environment:
       <<: *postgres-env-file
       ALLOWED_HOSTS: ${ALLOWED_HOSTS:?}
+      DB_NETWORK_SUBNET: ${DATAENGINE_NETWORK_SUBNET:?}
       PGDATA: ${PGDATA:?}
     secrets:
       - dataengine_postgres_password
@@ -63,13 +59,16 @@ services:
     container_name: dataengine-backup
     restart: unless-stopped
     environment:
-      <<: *postgres-env
+      <<: *postgres-env-file
       AO_ENDPOINT: ${AO_ENDPOINT:?}
       AO_BUCKET: ${AO_BUCKET:?}
       AO_ACCESS_KEY: ${AO_ACCESS_KEY:?}
       AO_SECRET_KEY: ${AO_SECRET_KEY:?}
+      BACKUP_AGE_RECIPIENT: ${BACKUP_AGE_RECIPIENT:?}
       BACKUP_UID: ${BACKUP_UID:?}
       BACKUP_GID: ${BACKUP_GID:?}
+    secrets:
+      - dataengine_postgres_password
     volumes:
       - ${BACKUP_DATA:?}:/backups
       - ./postgres/certs:/certs:ro
@@ -91,8 +90,13 @@ services:
     container_name: dataengine-pgbouncer
     restart: unless-stopped
     ports:
-      - "${PG_BIND_ADDRESS:?}:${PGBOUNCER_PORT:?}:6432"
-    environment: *postgres-env
+      - "127.0.0.1:${PGBOUNCER_PORT:?}:6432"
+    environment: *postgres-env-file
+    secrets:
+      - dataengine_postgres_password
+      - dataengine_pgbouncer_admin_password
+    group_add:
+      - "${DATAENGINE_SECRETS_GID:?}"
     volumes:
       - ./pgbouncer/pgbouncer.ini:/etc/pgbouncer/pgbouncer.ini:ro
       - ./pgbouncer/entrypoint.sh:/entrypoint.sh:ro
@@ -112,36 +116,28 @@ services:
     build: ./jobs
     container_name: dataengine-jobs
     restart: unless-stopped
-    ports:
-      - "${PG_BIND_ADDRESS:?}:${VERSION_API_PORT:?}:8088"
-    volumes:
-      - ./VERSION:/app/VERSION:ro
-      - /var/run/docker.sock:/var/run/docker.sock:ro
-      - /etc/os-release:/host/etc/os-release:ro
     environment:
       DATAENGINE_DB_USER: ${POSTGRES_USER:?}
-      DATAENGINE_DB_PASSWORD: ${POSTGRES_PASSWORD:?}
+      DATAENGINE_DB_PASSWORD_FILE: /run/secrets/dataengine_postgres_password
       DATAENGINE_DB_HOST: postgres-primary
       DATAENGINE_DB_PORT: "5432"
       DATAENGINE_DB_NAME: ${POSTGRES_DB:?}
       DATAENGINE_DB_SSLMODE: require
       AO_ENDPOINT: ${AO_ENDPOINT:?}
       MAPALAB_AO_BUCKET: ${MAPALAB_AO_BUCKET:?}
-      MAPALAB_AO_ACCESS_KEY: ${MAPALAB_AO_ACCESS_KEY:?}
-      MAPALAB_AO_SECRET_KEY: ${MAPALAB_AO_SECRET_KEY:?}
+      MAPALAB_AO_ACCESS_KEY_FILE: /run/secrets/dataengine_mapalab_ao_access_key
+      MAPALAB_AO_SECRET_KEY_FILE: /run/secrets/dataengine_mapalab_ao_secret_key
       GEOSERVER_URL: ${GEOSERVER_URL:?}
-      ONTOY_SERVICE: dataengine
-      ONTOY_COMPOSE_PROJECT: dataengine
-      ONTOY_NODE: ${ONTOY_NODE:?}
-      ONTOY_NODE_REPORTER: ${ONTOY_NODE_REPORTER:?}
-      ONTOY_PEER_CHECKS: ${ONTOY_PEER_CHECKS}
-      ONTOY_DISK_PATH: ${ONTOY_DISK_PATH:?}
+    secrets:
+      - dataengine_postgres_password
+      - dataengine_mapalab_ao_access_key
+      - dataengine_mapalab_ao_secret_key
     depends_on:
       postgres-primary:
         condition: service_healthy
     healthcheck:
       <<: *healthcheck
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8088/ontoy').read()"]
+      test: ["CMD", "test", "-s", "/var/run/crond.pid"]
       interval: 30s
       retries: 3
     extra_hosts: *host-gateway
@@ -149,11 +145,73 @@ services:
       - db-network
     logging: *logging
 
+  docker-socket-proxy:
+    image: tecnativa/docker-socket-proxy:v0.5.0
+    container_name: dataengine-docker-socket-proxy
+    restart: unless-stopped
+    environment:
+      CONTAINERS: 1
+      EVENTS: 0
+      PING: 0
+      VERSION: 0
+      POST: 0
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    networks:
+      - docker-api
+    logging: *logging
+
+  version-api:
+    build: ./version-api
+    container_name: dataengine-version-api
+    restart: unless-stopped
+    ports:
+      - "${PG_BIND_ADDRESS:?}:${VERSION_API_PORT:?}:8088"
+    environment:
+      ONTOY_SERVICE: dataengine
+      ONTOY_COMPOSE_PROJECT: dataengine
+      ONTOY_NODE: ${ONTOY_NODE:?}
+      ONTOY_NODE_REPORTER: ${ONTOY_NODE_REPORTER:?}
+      ONTOY_PEER_CHECKS: ${ONTOY_PEER_CHECKS?}
+      ONTOY_DISK_PATH: ${ONTOY_DISK_PATH:?}
+      DOCKER_HOST: tcp://docker-socket-proxy:2375
+    volumes:
+      - ./VERSION:/app/VERSION:ro
+      - ./docs/CHANGELOG.md:/app/CHANGELOG.md:ro
+      - /etc/os-release:/host/etc/os-release:ro
+    depends_on:
+      - docker-socket-proxy
+    healthcheck:
+      <<: *healthcheck
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8088/ontoy').read()"]
+      interval: 30s
+      retries: 3
+    extra_hosts: *host-gateway
+    networks:
+      - ontoy-network
+      - docker-api
+    logging: *logging
+
 networks:
   db-network:
     name: dataengine-network
     driver: bridge
+    ipam:
+      config:
+        - subnet: ${DATAENGINE_NETWORK_SUBNET:?}
+  ontoy-network:
+    name: dataengine-ontoy-network
+    driver: bridge
+  docker-api:
+    name: dataengine-docker-api
+    internal: true
 
 secrets:
   dataengine_postgres_password:
     file: ./secrets/dataengine_postgres_password
+  dataengine_pgbouncer_admin_password:
+    file: ./secrets/dataengine_pgbouncer_admin_password
+  dataengine_mapalab_ao_access_key:
+    file: ./secrets/dataengine_mapalab_ao_access_key
+  dataengine_mapalab_ao_secret_key:
+    file: ./secrets/dataengine_mapalab_ao_secret_key

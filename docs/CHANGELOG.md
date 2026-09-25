@@ -6,6 +6,85 @@ El formato esta basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.
 y este proyecto se adhiere a [Versionado Semantico](https://semver.org/lang/es/). El versionado
 de `dataengine` es independiente del de MapaLab.
 
+## [1.44.0] - 2026-09-24
+
+### Cambiado: el `/ontoy` sale de `jobs` a su propio `version-api`
+
+`jobs` juntaba en un solo contenedor root, el socket de Docker, el superusuario de Postgres, las
+llaves S3 de mapalab y el listener publicado en `PG_BIND_ADDRESS:8088`. Ahora `ontoy_server.py` vive
+en `version-api/`, igual que en el resto del ecosistema: sin credenciales de base ni de S3, como uid
+65534, publicado en el mismo `PG_BIND_ADDRESS:VERSION_API_PORT`, así que el target del monitor
+(`http://<S4>:8088/ontoy`) no cambia. Lee `VERSION` y `docs/CHANGELOG.md` para `released_at`.
+
+Los contenedores los consulta por un `docker-socket-proxy` (`tecnativa/docker-socket-proxy:v0.5.0`)
+con `CONTAINERS=1` y todo lo demás en 0, en la red interna `dataengine-docker-api`. Ningún servicio
+del repo monta ya `docker.sock` salvo el proxy. El healthcheck de `jobs` pasa a vigilar el pid de cron.
+
+### Cambiado: el refresh de estadísticas corre con un rol de solo lectura (migración 0050)
+
+`run_refresh_layer_stats.py` ejecutaba los `stats_config` de mariachi como superusuario y sin lista de
+schemas: una configuración podía leer `pg_authid` y dejarlo en `layer_stats.values`, que el visor
+publica. Cada stat corre ahora bajo `SET LOCAL ROLE mapalab_stats` dentro de su savepoint, y antes de
+ejecutarse el schema se valida contra `mapalab.workspaces` (sin `mapalab`).
+
+La migración `0050_rol_stats_lectura` crea `mapalab_stats` sin login, con USAGE y SELECT sobre los
+schemas del catálogo. Un workspace nuevo necesita reaplicar `scripts/stats_read_grants.sql`, que ya
+cubre los dos roles. Si se usa `MAPALAB_STATS_DB_USER`, ese usuario debe ser miembro de
+`mapalab_stats`.
+
+### Cambiado: pgbouncer solo en `127.0.0.1` y con contraseña de admin propia
+
+Nadie usa el 6432 desde fuera del nodo: mariachi, mapalab y sextante van al 5432. Lo único que lo
+tocaba eran los `ONTOY_PEER_CHECKS` de S1, S2 y S3, que deben apuntar a `<S4>:5432`. El puerto se
+publica en `127.0.0.1`, `pgbouncer_admin` lee su contraseña del secret
+`dataengine_pgbouncer_admin_password` (el arranque falla si es igual a la del superusuario) y la
+conexión a Postgres exige TLS (`server_tls_sslmode = require`).
+
+### Cambiado: `pg_hba` acota la red docker a `hostssl` sobre `dataengine-network`
+
+La regla `host 172.16.0.0/12` cambia a `hostssl ${DATAENGINE_NETWORK_SUBNET}`, y la subred queda fija
+en el compose. **`pg_hba.conf` solo se genera al inicializar el volumen**: en los entornos existentes
+hay que editar el vivo y recargar (`SELECT pg_reload_conf();`). Un cliente del monolito que entre por
+`host.docker.internal` ya no cae en esa regla: su subred va en `ALLOWED_HOSTS`.
+
+### Cambiado: contraseñas y llaves fuera del entorno de los contenedores
+
+pgbouncer, `pg-backup` y `jobs` leen la contraseña de `dataengine_postgres_password` por `*_FILE`;
+las llaves de mapalab en el Acervo pasan a los secrets `dataengine_mapalab_ao_access_key` y
+`dataengine_mapalab_ao_secret_key`. `POSTGRES_PASSWORD`, `MAPALAB_AO_ACCESS_KEY` y
+`MAPALAB_AO_SECRET_KEY` salen del `.env`. pgbouncer corre como uid 70 y lee los secrets por
+`group_add` (`DATAENGINE_SECRETS_GID`): los archivos van en `0640` con ese grupo.
+
+### Cambiado: respaldos cifrados con `age` y subidos con `rclone`
+
+`dl.min.io` responde 410 desde que MinIO archivó `mc`: la imagen de `pg-backup` ya no se podía
+construir. `rclone` y `age` salen de `apk`, firmados por Alpine. Las llaves van por
+`RCLONE_CONFIG_ACERVO_*`, no en argv. Antes de subir, el dump se cifra con `BACKUP_AGE_RECIPIENT`
+(obligatoria) y al bucket llega `<dump>.age`; la copia local sigue en claro con `0600`. Restaurar
+desde el Acervo pide la llave privada: `age -d -i <llave> -o dump.sql.gz dump.sql.gz.age`.
+
+### Corregido: los jobs de cron no recibían `GEOSERVER_URL`
+
+`entrypoint.sh` volcaba a `/etc/environment` todo lo que empezara por `DATAENGINE_`, `AO_` o
+`MAPALAB_AO_`, secretos incluidos, y dejaba fuera `GEOSERVER_URL`: el hexbin de las 04:15 fallaba.
+Ahora escribe una lista explícita de variables, con `GEOSERVER_URL` y las rutas `*_FILE` de los
+secretos en vez de sus valores.
+
+### Corregido: las contraseñas de rol no quedan en el log de Postgres
+
+`bootstrap-v14.sh` hace `SET log_statement = 'none'` y `SET log_min_error_statement = 'panic'` en la
+misma sesión antes de `CREATE ROLE` / `ALTER ROLE ... PASSWORD`; con `log_statement = 'ddl'` la
+contraseña quedaba en claro en los logs. Toma la contraseña del secret si no está en el `.env`.
+
+### Al desplegar
+
+Crear `secrets/dataengine_pgbouncer_admin_password`, `secrets/dataengine_mapalab_ao_access_key` y
+`secrets/dataengine_mapalab_ao_secret_key` (`0640`, grupo de `DATAENGINE_SECRETS_GID`); agregar al
+`.env` `BACKUP_AGE_RECIPIENT`, `DATAENGINE_NETWORK_SUBNET` y `DATAENGINE_SECRETS_GID`; `make down` y
+`make deploy` para recrear la red con subred fija; `make migrate` para la 0050; editar el
+`pg_hba.conf` vivo. `jobs` y `pg-backup` siguen como root: cron de Debian y `crond` de busybox lo
+necesitan.
+
 ## [1.43.0] - 2026-09-04
 
 ### Agregado: la periodicidad alimenta la fecha y la frecuencia de la ficha
