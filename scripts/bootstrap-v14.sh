@@ -1,19 +1,18 @@
 #!/usr/bin/env bash
 # Bootstrap v1.4.0 MapaLab sobre DataEngine.
 #
-# Ejecuta de forma idempotente los pasos 1-5 del deploy:
+# Ejecuta de forma idempotente los pasos 1-4 del deploy:
 #   1. Crear rol `mariachi_layers` (si no existe) + generar password
 #   2. Crear schema `mapalab` con owner + grants + search_path
 #   3. Aplicar schema (tablas + seed de workspaces)
 #   4. Seed de layers desde JSON exportado por frontend
-#   5. Migrar public.mapalab_card → mapalab.layer_metadata + layer_stats
 #
 # Asume que el stack dataengine esta corriendo (postgres-primary + jobs containers).
 # Requiere .env con POSTGRES_USER, POSTGRES_PASSWORD, POSTGRES_DB.
 #
 # Uso:
 #   ./scripts/bootstrap-v14.sh --layers-json /path/to/layers_export.json
-#   ./scripts/bootstrap-v14.sh --layers-json ... --skip-role --skip-migrate
+#   ./scripts/bootstrap-v14.sh --layers-json ... --skip-role
 #   ./scripts/bootstrap-v14.sh --dry-run
 
 set -euo pipefail
@@ -27,7 +26,6 @@ DRY_RUN=0
 SKIP_ROLE=0
 SKIP_SCHEMA=0
 SKIP_SEED=0
-SKIP_MIGRATE=0
 PROVIDED_PASSWORD=""
 
 usage() {
@@ -43,8 +41,7 @@ while [[ $# -gt 0 ]]; do
         --skip-role) SKIP_ROLE=1; shift ;;
         --skip-schema) SKIP_SCHEMA=1; shift ;;
         --skip-seed) SKIP_SEED=1; shift ;;
-        --skip-migrate) SKIP_MIGRATE=1; shift ;;
-        -h|--help) usage ;;
+                -h|--help) usage ;;
         *) echo "Argumento desconocido: $1" >&2; exit 1 ;;
     esac
 done
@@ -95,14 +92,13 @@ echo "  dry-run:        $([ $DRY_RUN -eq 1 ] && echo si || echo NO)"
 echo "  skip-role:      $SKIP_ROLE"
 echo "  skip-schema:    $SKIP_SCHEMA"
 echo "  skip-seed:      $SKIP_SEED (requiere --layers-json)"
-echo "  skip-migrate:   $SKIP_MIGRATE (migrate public.mapalab_card)"
 echo
 
 ML_PASSWORD=""
 ROLE_EXISTS=0
 
 if [ $SKIP_ROLE -eq 0 ]; then
-    echo "--- Paso 1/5: rol mariachi_layers ---"
+    echo "--- Paso 1/4: rol mariachi_layers ---"
     ROLE_EXISTS=$(_exec_primary psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -tAc \
         "SELECT 1 FROM pg_roles WHERE rolname = 'mariachi_layers'" | tr -d '[:space:]' || echo 0)
 
@@ -134,12 +130,12 @@ SQL
         fi
     fi
 else
-    echo "--- Paso 1/5: SKIP rol ---"
+    echo "--- Paso 1/4: SKIP rol ---"
 fi
 
 if [ $SKIP_SCHEMA -eq 0 ]; then
     echo
-    echo "--- Paso 2/5: schema mapalab + ownership ---"
+    echo "--- Paso 2/4: schema mapalab + ownership ---"
     SCHEMA_EXISTS=$(_exec_primary psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -tAc \
         "SELECT 1 FROM information_schema.schemata WHERE schema_name = 'mapalab'" | tr -d '[:space:]' || echo 0)
     if [ "$SCHEMA_EXISTS" = "1" ]; then
@@ -151,14 +147,13 @@ if [ $SKIP_SCHEMA -eq 0 ]; then
             _exec_primary psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" <<SQL
 CREATE SCHEMA mapalab AUTHORIZATION mariachi_layers;
 REVOKE CREATE ON SCHEMA public FROM mariachi_layers;
-GRANT SELECT ON public.mapalab_card TO mariachi_layers;
 SQL
-            echo "  Schema creado. CREATE sobre public revocado. SELECT sobre mapalab_card otorgado."
+            echo "  Schema creado. CREATE sobre public revocado."
         fi
     fi
 
     echo
-    echo "--- Paso 3/5: aplicar schema (tablas + seed workspaces) ---"
+    echo "--- Paso 3/4: aplicar schema (tablas + seed workspaces) ---"
     if [ $DRY_RUN -eq 1 ]; then
         echo "  [dry-run] psql -f v14_schema.sql (via postgres-primary stdin)"
     else
@@ -176,7 +171,7 @@ SQL
     # el editor de capas en mariachi truena con "permission denied for table
     # layers". Idempotente, seguro de correr varias veces.
     echo
-    echo "--- Paso 3b/5: GRANTs sobre mapalab.* para mariachi_layers ---"
+    echo "--- Paso 3b/4: GRANTs sobre mapalab.* para mariachi_layers ---"
     if [ $DRY_RUN -eq 1 ]; then
         echo "  [dry-run] GRANT SELECT/INSERT/UPDATE/DELETE ON ALL TABLES IN SCHEMA mapalab"
     else
@@ -192,12 +187,12 @@ SQL
         echo "  GRANTs aplicados."
     fi
 else
-    echo "--- Pasos 2-3/5: SKIP schema ---"
+    echo "--- Pasos 2-3/4: SKIP schema ---"
 fi
 
 if [ $SKIP_SEED -eq 0 ]; then
     echo
-    echo "--- Paso 4/5: seed de layers desde JSON ---"
+    echo "--- Paso 4/4: seed de layers desde JSON ---"
     if [ -z "$LAYERS_JSON" ]; then
         echo "  ERROR: --layers-json es requerido para esta fase (o usa --skip-seed)" >&2
         echo "  El repo trae un baseline: jobs/bootstrap/layers_export.json" >&2
@@ -222,20 +217,9 @@ if [ $SKIP_SEED -eq 0 ]; then
     fi
     _exec_jobs rm -f /tmp/_layers_export.json
 else
-    echo "--- Paso 4/5: SKIP seed ---"
+    echo "--- Paso 4/4: SKIP seed ---"
 fi
 
-if [ $SKIP_MIGRATE -eq 0 ]; then
-    echo
-    echo "--- Paso 5/5: migrar public.mapalab_card → mapalab.layer_metadata ---"
-    if [ $DRY_RUN -eq 1 ]; then
-        _exec_jobs python /app/bootstrap/run_migrate_mapalab_card.py
-    else
-        _exec_jobs python /app/bootstrap/run_migrate_mapalab_card.py --apply
-    fi
-else
-    echo "--- Paso 5/5: SKIP migrate ---"
-fi
 
 echo
 echo "--- Aplicar migraciones alembic ---"
@@ -269,7 +253,7 @@ if [ -n "$ML_PASSWORD" ] && [ "$ROLE_EXISTS" != "1" ]; then
     echo "⚠️  GUARDA ESTE VALOR EN .env DE MARIACHI:"
     echo "    DATAENGINE_DATABASE_URL=postgresql://mariachi_layers:${ML_PASSWORD}@<dataengine_host>:5432/${POSTGRES_DB}?sslmode=require"
     echo
-    echo "    (Solo se muestra una vez. Si lo pierdes: ./scripts/bootstrap-v14.sh --skip-schema --skip-seed --skip-migrate --password <nuevo>)"
+    echo "    (Solo se muestra una vez. Si lo pierdes: ./scripts/bootstrap-v14.sh --skip-schema --skip-seed --password <nuevo>)"
 fi
 
 echo
@@ -311,11 +295,7 @@ echo " 6. Verificar endpoints:"
 echo "      curl -sI https://<dominio>/mapalab/api/layers/tree | grep -i etag"
 echo "      curl -u admin:<pwd> https://<dominio>/api/administrador/layers | head -c 200"
 echo
-echo " 7. (Opcional) Si tenias public.mapalab_card en prod, validar paridad con"
-echo "    mapalab.layer_metadata antes de hacer DROP:"
-echo "      psql ... -f scripts/drop_mapalab_card_validation.sql"
-echo
-echo " 8. Confirmar que gateway-hub tiene los bloqueos admin activos:"
+echo " 7. Confirmar que gateway-hub tiene los bloqueos admin activos:"
 echo "      curl -X POST https://<dominio>/mapalab/api/layers/refresh-cache"
 echo "      (debe responder 403)"
 echo
@@ -329,7 +309,7 @@ echo " 'permission denied for table <X>' (p.ej. porque alguien corrio el SQL"
 echo " suelto sin pasar por este script, o hay tablas nuevas creadas fuera"
 echo " del default privileges), re-aplicalos standalone:"
 echo
-echo "      ./scripts/bootstrap-v14.sh --skip-role --skip-seed --skip-migrate"
+echo "      ./scripts/bootstrap-v14.sh --skip-role --skip-seed"
 echo
 echo " Eso vuelve a correr solo Paso 2 (idempotente) + Paso 3 (re-aplica"
 echo " v14_schema.sql, idempotente) + Paso 3b (re-corre los GRANTs)."

@@ -6,6 +6,19 @@ El formato esta basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.
 y este proyecto se adhiere a [Versionado Semantico](https://semver.org/lang/es/). El versionado
 de `dataengine` es independiente del de MapaLab.
 
+## [1.45.0] - 2026-09-24
+
+### Eliminado: el legado `mapalab_card`
+
+- La migración `0051_drop_mapalab_card` borra `public.mapalab_card` con `IF EXISTS`. Antes se
+  verificó contra una copia de producción que sus 132 filas (130 capas distintas) están todas en
+  `mapalab.layer_metadata`.
+- Salen `jobs/bootstrap/run_migrate_mapalab_card.py`, `scripts/drop_mapalab_card_validation.sql`
+  (ya no corría: buscaba una columna `workspace` que la tabla nunca tuvo) y
+  `jobs/core/databases/factories.py`, que solo existía para esa conexión.
+- `bootstrap-v14.sh` pierde el paso 5 (migrar `mapalab_card`), el flag `--skip-migrate` y el
+  `GRANT SELECT` sobre la tabla.
+
 ## [1.44.0] - 2026-09-24
 
 ### Cambiado: el `/ontoy` sale de `jobs` a su propio `version-api`
