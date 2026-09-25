@@ -12,6 +12,13 @@ PRIMITIVE_OPERATIONS = {'count', 'count_distinct', 'count_where', 'sum', 'avg', 
 COMBINATOR_OPS = {'add', 'sub', 'mul', 'div', 'percent', 'percent_change'}
 STATS_OPERATIONS = PRIMITIVE_OPERATIONS | {'formula', 'static'}
 MAX_EXPRESSION_DEPTH = 6
+SYSTEM_SCHEMAS = frozenset({'pg_catalog', 'information_schema', 'pg_toast'})
+
+_ALLOWED_SCHEMAS_SQL = """
+    SELECT DISTINCT db_schema
+    FROM mapalab.workspaces
+    WHERE db_schema IS NOT NULL AND db_schema <> 'mapalab'
+"""
 
 
 def _is_identifier(value) -> bool:
@@ -85,7 +92,28 @@ def _to_number(value):
         return None
 
 
-def _execute_primitive(conn, cfg: dict):
+def _is_system_schema(schema: str) -> bool:
+    return schema in SYSTEM_SCHEMAS or schema.startswith('pg_')
+
+
+def load_allowed_schemas(conn) -> frozenset[str]:
+    return frozenset(
+        row[0]
+        for row in conn.execute(text(_ALLOWED_SCHEMAS_SQL))
+        if _is_identifier(row[0]) and not _is_system_schema(row[0])
+    )
+
+
+def _check_source(cfg: dict, schemas: frozenset[str]) -> None:
+    schema = cfg.get('schema')
+    if not _is_identifier(schema) or _is_system_schema(schema) or schema not in schemas:
+        raise ValueError(f"schema '{schema}' fuera de mapalab.workspaces")
+    if not _is_identifier(cfg.get('table')):
+        raise ValueError(f"tabla '{cfg.get('table')}' invalida")
+
+
+def _execute_primitive(conn, cfg: dict, schemas: frozenset[str]):
+    _check_source(cfg, schemas)
     built = _build_query(cfg)
     if built is None:
         raise ValueError(f"config primitiva invalida (operation={cfg.get('operation')})")
@@ -93,7 +121,7 @@ def _execute_primitive(conn, cfg: dict):
     return conn.execute(text(sql), params).scalar()
 
 
-def _evaluate_expression(conn, expr, depth: int = 0):
+def _evaluate_expression(conn, expr, schemas: frozenset[str], depth: int = 0):
     if depth > MAX_EXPRESSION_DEPTH:
         raise ValueError('expresion demasiado anidada')
     if not isinstance(expr, dict):
@@ -106,14 +134,14 @@ def _evaluate_expression(conn, expr, depth: int = 0):
         return literal
 
     if expr.get('operation') in PRIMITIVE_OPERATIONS:
-        return _execute_primitive(conn, expr)
+        return _execute_primitive(conn, expr, schemas)
 
     op = expr.get('op')
     if op not in COMBINATOR_OPS:
         raise ValueError(f"combinator invalido: '{op}'")
 
-    left = _to_number(_evaluate_expression(conn, expr.get('left'), depth + 1))
-    right = _to_number(_evaluate_expression(conn, expr.get('right'), depth + 1))
+    left = _to_number(_evaluate_expression(conn, expr.get('left'), schemas, depth + 1))
+    right = _to_number(_evaluate_expression(conn, expr.get('right'), schemas, depth + 1))
     if left is None or right is None:
         return None
     if op == 'add':
@@ -129,13 +157,13 @@ def _evaluate_expression(conn, expr, depth: int = 0):
     return ((left - right) / right) * 100 if right != 0 else None
 
 
-def _execute_stat(conn, cfg: dict):
+def _execute_stat(conn, cfg: dict, schemas: frozenset[str]):
     op = cfg.get('operation')
     if op == 'static':
         return cfg.get('value')
     if op == 'formula':
-        return _evaluate_expression(conn, cfg.get('expression'))
-    return _execute_primitive(conn, cfg)
+        return _evaluate_expression(conn, cfg.get('expression'), schemas)
+    return _execute_primitive(conn, cfg, schemas)
 
 
 def _format_value(value, fmt) -> str | None:
@@ -160,7 +188,9 @@ def _format_value(value, fmt) -> str | None:
     return str(value)
 
 
-def _refresh_layer(conn, layer_key: str, stats_config: list) -> tuple[list, list]:
+def _refresh_layer(
+    conn, layer_key: str, stats_config: list, schemas: frozenset[str]
+) -> tuple[list, list]:
     values = []
     errors = []
 
@@ -175,7 +205,9 @@ def _refresh_layer(conn, layer_key: str, stats_config: list) -> tuple[list, list
         needs_db = cfg.get('operation') != 'static'
         savepoint = conn.begin_nested() if needs_db else None
         try:
-            raw = _execute_stat(conn, cfg)
+            if savepoint is not None:
+                conn.execute(text('SET TRANSACTION READ ONLY'))
+            raw = _execute_stat(conn, cfg, schemas)
             if savepoint is not None:
                 savepoint.commit()
         except Exception as exc:
@@ -221,6 +253,7 @@ def main() -> int:
     try:
         with engine.connect() as conn:
             rows = conn.execute(text(_SELECT_PENDING), {'force': force}).fetchall()
+            schemas = load_allowed_schemas(conn)
 
             if not rows:
                 Logger.info('📊  Sin capas vencidas por TTL — nada que refrescar')
@@ -231,7 +264,7 @@ def main() -> int:
             for layer_key, stats_config in rows:
                 transaction = conn.begin()
                 try:
-                    values, errors = _refresh_layer(conn, layer_key, stats_config or [])
+                    values, errors = _refresh_layer(conn, layer_key, stats_config or [], schemas)
                     for detail in errors:
                         Logger.warning(f'   [{layer_key}] {detail}')
 
