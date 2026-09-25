@@ -562,6 +562,29 @@ en el `.env`.
 
 `run_refresh_layer_tree.py` publica el campo como `geometryType` en el árbol. Sin eso, el cron de
 las 4:00 reconstruiría la caché sin el dato y el ícono desaparecería del visor cada madrugada.
+## [1.32.4] - 2026-09-24
+
+### Corregido: las stats de mariachi podían leer cualquier tabla de la base
+
+`run_refresh_layer_stats.py` corre cada hora los `stats_config` que guardan los editores de
+mariachi con el usuario del job, que es superusuario, y solo validaba que schema y tabla fueran
+identificadores. Un editor podía apuntar una stat a `pg_catalog.pg_authid` o a cualquier otra tabla
+y el valor salía publicado en la tarjetita del visor (crítico C3 de la auditoría del 2026-09-24).
+
+Ahora, antes de ejecutar cada stat primitiva —también las que van dentro de una fórmula—, el
+schema tiene que estar en `mapalab.workspaces` (sin `mapalab`) y no ser de sistema (`pg_catalog`,
+`information_schema`, `pg_toast` ni ningún `pg_*`), y la tabla tiene que ser un identificador
+válido. La stat que no pasa se omite con aviso en el log, igual que cualquier stat que falla; si
+ninguna de la capa pasa, la capa conserva sus valores previos. Además, cada stat corre en su
+savepoint con `SET TRANSACTION READ ONLY`, que se revierte al cerrarlo y no afecta al `UPDATE` de
+`mapalab.layer_stats`.
+
+Es el port a production del arreglo de `tamal-rojo`, **sin migración**: el rol `mapalab_stats`
+de la `0050` no existe en esta cadena y no se crea aquí. `MAPALAB_STATS_DB_USER` sigue disponible
+para correr el job con un usuario sin privilegios de superusuario.
+
+**Al desplegar:** `docker compose up -d --build --no-deps jobs`.
+
 ## [1.32.3] - 2026-09-11
 
 ### Agregado: las fechas anuales de las tarjetitas se muestran como año (migración 0035a)
