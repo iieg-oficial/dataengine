@@ -202,9 +202,15 @@ networks:
   ontoy-network:
     name: dataengine-ontoy-network
     driver: bridge
+    ipam:
+      config:
+        - subnet: ${DATAENGINE_ONTOY_SUBNET:?}
   docker-api:
     name: dataengine-docker-api
     internal: true
+    ipam:
+      config:
+        - subnet: ${DATAENGINE_DOCKER_API_SUBNET:?}
 
 secrets:
   dataengine_postgres_password:

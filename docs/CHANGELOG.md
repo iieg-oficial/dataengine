@@ -6,6 +6,19 @@ El formato esta basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.
 y este proyecto se adhiere a [Versionado Semantico](https://semver.org/lang/es/). El versionado
 de `dataengine` es independiente del de MapaLab.
 
+## [1.45.1] - 2026-09-25
+
+### Corregido: `dataengine-network` podía perder su subred al crearse
+
+Compose crea las tres redes a la vez. `dataengine-docker-api` y `dataengine-ontoy-network` no
+tenían subred fija y tomaban la primera libre del pool del daemon; en una máquina cuyo pool empieza
+en la subred de `DATAENGINE_NETWORK_SUBNET`, una de ellas se la quedaba y el deploy moría con
+`Pool overlaps with other one on this address space`. Pasó en local al desplegar la 1.44.0. Ahora
+las dos llevan subred fija: `DATAENGINE_ONTOY_SUBNET` y `DATAENGINE_DOCKER_API_SUBNET`.
+
+**Al desplegar:** agregar las dos variables al `.env`, con subredes fuera de los
+`default-address-pools` del daemon, y borrar las dos redes antes de `make deploy`.
+
 ## [1.45.0] - 2026-09-24
 
 ### Eliminado: el legado `mapalab_card`
