@@ -6,6 +6,13 @@ El formato esta basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.
 y este proyecto se adhiere a [Versionado Semantico](https://semver.org/lang/es/). El versionado
 de `dataengine` es independiente del de MapaLab.
 
+## [1.45.3] - 2026-09-29
+
+### Corregido
+
+- El proxy del socket de Docker del sidecar `/ontoy` deja de ser `tecnativa/docker-socket-proxy`: con `CONTAINERS=1` también dejaba pedir `/containers/{id}/json` (el entorno, con secretos), `logs` y `archive` de cualquier contenedor del host. Ahora es `nginx:1.30.4-alpine` sin root, de solo lectura y sin capacidades, con `version-api/docker-proxy.conf`, que solo deja pasar `GET /containers/json` (con o sin prefijo `/vX.Y/`) y responde 403 a todo lo demás. Pide `DOCKER_GID` en el `.env`.
+- El respaldo falla si no logra subir el dump cifrado al acervo o si falta su configuración, en vez de terminar en verde sin copia fuera del servidor.
+
 ## [1.45.2] - 2026-09-29
 
 ### Corregido

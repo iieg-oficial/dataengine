@@ -5,8 +5,8 @@ FILEPATH="$1"
 FILENAME="$2"
 
 if [ -z "$AO_BUCKET" ] || [ -z "$AO_ACCESS_KEY" ]; then
-    echo "Acervo not configured, skipping upload"
-    exit 0
+    echo "AO_BUCKET o AO_ACCESS_KEY no definido: el respaldo no puede subirse al acervo" >&2
+    exit 1
 fi
 
 if [ -z "$BACKUP_AGE_RECIPIENT" ]; then
