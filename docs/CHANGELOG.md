@@ -6,6 +6,12 @@ El formato esta basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.
 y este proyecto se adhiere a [Versionado Semantico](https://semver.org/lang/es/). El versionado
 de `dataengine` es independiente del de MapaLab.
 
+## [1.45.2] - 2026-09-29
+
+### Corregido
+
+- El check `containers` de `/ontoy` ya no marca degradado un contenedor de un solo uso que terminó con código 0 (el `monitor-data-init` de huachicol), y el sidecar deja de contar su propia salud, que lo dejaba en `unhealthy` en cada arranque.
+
 ## [1.45.1] - 2026-09-25
 
 ### Corregido: `dataengine-network` podía perder su subred al crearse
