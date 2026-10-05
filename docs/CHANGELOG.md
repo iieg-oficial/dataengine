@@ -6,6 +6,16 @@ El formato esta basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.
 y este proyecto se adhiere a [Versionado Semantico](https://semver.org/lang/es/). El versionado
 de `dataengine` es independiente del de MapaLab.
 
+## [1.48.0] - 2026-10-05
+
+### Agregado
+
+- **Migración `0054_legend_version`**: columna `mapalab.workspaces.legend_version`, entera y en 1 por
+  omisión. El visor la agrega a la URL de cada `GetLegendGraphic` y el botón «Vaciar cachés» de
+  mariachi la sube: al cambiar la URL, el gateway no encuentra la leyenda en su caché de seis horas
+  y la vuelve a pedir a GeoServer. Es idempotente (`ADD COLUMN IF NOT EXISTS`), y `mariachi_layers`
+  ya tenía `UPDATE` sobre la tabla.
+
 ## [1.47.0] - 2026-10-05
 
 ### Agregado
