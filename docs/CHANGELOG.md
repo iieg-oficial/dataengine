@@ -6,6 +6,12 @@ El formato esta basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.
 y este proyecto se adhiere a [Versionado Semantico](https://semver.org/lang/es/). El versionado
 de `dataengine` es independiente del de MapaLab.
 
+## [1.46.0] - 2026-10-05
+
+### Agregado
+
+- **Schema `instituto`** (migración `0052_instituto_espacios`): `pisos` (con el giro y el centro para dibujar el plano horizontal), `espacios` (nombre, tipo, piso, inclusión, trazo aproximado, orden y `geom` `MultiPolygon` en 6368) y `espacios_historial`. El historial lo llena un trigger `SECURITY DEFINER` con la fila completa antes y después, geometría incluida; quién y desde dónde salen de `instituto.actor` e `instituto.origen` (mariachi los fija con `SET LOCAL`), o del usuario de la sesión y `qgis`/`sql` por `application_name`. Un `UPDATE` que no cambia nada no se registra. `mariachi_layers` edita pisos y espacios y solo lee el historial. **La geometría no viene en la migración**: es el plano del edificio y se carga aparte en cada entorno
+
 ## [1.45.3] - 2026-09-29
 
 ### Corregido
