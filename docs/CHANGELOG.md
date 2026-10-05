@@ -6,6 +6,13 @@ El formato esta basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.
 y este proyecto se adhiere a [Versionado Semantico](https://semver.org/lang/es/). El versionado
 de `dataengine` es independiente del de MapaLab.
 
+## [1.47.0] - 2026-10-05
+
+### Agregado
+
+- **Capas privadas de MapaLab** (migración `0053_capas_privadas`): `mapalab.layers.privada` saca un nodo del árbol público (una carpeta privada arrastra a sus descendientes), y cuatro tablas deciden quién lo ve: `usuarios` (por `sub` de minerva o dado de alta por correo antes del primer login), `grupos`, `grupo_miembros` y `capa_acceso` (una persona o un grupo por fila). minerva solo decide quién inicia sesión en el visor; el acceso por capa vive aquí porque minerva no expone sus grupos a los consumidores. `mariachi_layers` edita las cuatro
+- El job `run_refresh_layer_tree` deja fuera del árbol cacheado los nodos privados y sus descendientes, y los quita del orden inicial: el cron de las 04:00 no vuelve a publicarlos
+
 ## [1.46.0] - 2026-10-05
 
 ### Agregado

@@ -30,7 +30,7 @@ def main() -> int:
             count = len(layers)
 
             tree = _build_tree(layers, ws_map, aliases)
-            initial_order = _fetch_initial_order(conn)
+            initial_order = _solo_publicas(_fetch_initial_order(conn), tree)
 
             etag = _compute_etag(max_updated, count)
 
@@ -93,7 +93,7 @@ _LAYER_COLS = [
 def _fetch_layers(conn) -> list[dict]:
     rows = conn.execute(text(
         f"SELECT {', '.join(_LAYER_COLS)} FROM mapalab.layers "
-        "WHERE deleted_at IS NULL "
+        "WHERE deleted_at IS NULL AND NOT privada "
         "ORDER BY parent_id NULLS FIRST, sort_order, id"
     )).fetchall()
     return [dict(zip(_LAYER_COLS, r)) for r in rows]
@@ -107,6 +107,19 @@ def _fetch_aliases(conn) -> dict[str, list[str]]:
     for layer_id, alias in rows:
         out.setdefault(layer_id, []).append(alias)
     return out
+
+
+def _ids_del_arbol(nodes: list[dict]) -> set[str]:
+    ids: set[str] = set()
+    for node in nodes:
+        ids.add(node['id'])
+        ids |= _ids_del_arbol(node.get('children') or [])
+    return ids
+
+
+def _solo_publicas(initial_order: list[str], tree: list[dict]) -> list[str]:
+    publicas = _ids_del_arbol(tree)
+    return [layer_id for layer_id in initial_order if layer_id in publicas]
 
 
 def _fetch_initial_order(conn) -> list[str]:
