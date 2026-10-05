@@ -6,6 +6,16 @@ El formato esta basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.
 y este proyecto se adhiere a [Versionado Semantico](https://semver.org/lang/es/). El versionado
 de `dataengine` es independiente del de MapaLab.
 
+## [1.49.0] - 2026-10-05
+
+### Agregado
+
+- **Migración `0055_instituto_elementos`**: lo necesario para levantar el plano del instituto en 3D y
+  caminarlo. `instituto.pisos` gana `nivel`, `altura` (3 m mientras no haya dato medido), `transitable`
+  y `con_plano`; `instituto.elementos` guarda muros, escaleras y volúmenes con `base` y `altura`
+  propias (nula toma la del piso). Una planta sin plano es un `volumen` sin divisiones. La geometría
+  se carga aparte, como en la `0052`; `mariachi_layers` solo la lee.
+
 ## [1.48.0] - 2026-10-05
 
 ### Agregado
