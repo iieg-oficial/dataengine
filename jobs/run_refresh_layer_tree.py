@@ -8,6 +8,7 @@ from typing import Any, Optional
 from sqlalchemy import create_engine, text
 
 from core.utils.logger import Logger
+from core.utils.secretos import leer_secreto
 
 
 def main() -> int:
@@ -29,7 +30,7 @@ def main() -> int:
             count = len(layers)
 
             tree = _build_tree(layers, ws_map, aliases)
-            initial_order = _fetch_initial_order(conn)
+            initial_order = _solo_publicas(_fetch_initial_order(conn), tree)
 
             etag = _compute_etag(max_updated, count)
 
@@ -49,7 +50,7 @@ def _build_url() -> Optional[str]:
     if direct:
         return direct
     user = os.getenv('DATAENGINE_DB_USER')
-    pwd = os.getenv('DATAENGINE_DB_PASSWORD')
+    pwd = leer_secreto('DATAENGINE_DB_PASSWORD')
     host = os.getenv('DATAENGINE_DB_HOST')
     port = os.getenv('DATAENGINE_DB_PORT', '5432')
     db = os.getenv('DATAENGINE_DB_NAME')
@@ -79,18 +80,20 @@ _LAYER_COLS = [
     'raster_periodicity', 'hide_periodicity',
     'default_zoom', 'zoom_range',
     'search_tags', 'searchable_fields',
-    'has_municipio', 'has_direccion', 'municipio_field', 'direccion_field',
+    'has_municipio', 'has_direccion', 'municipio_field', 'municipio_field_type',
+    'direccion_field',
     'infobox_template', 'infobox_config',
     'icon_url', 'icon_overrides',
     'notice', 'badge',
     'highlight_color', 'highlight_shape',
+    'geometry_type',
 ]
 
 
 def _fetch_layers(conn) -> list[dict]:
     rows = conn.execute(text(
         f"SELECT {', '.join(_LAYER_COLS)} FROM mapalab.layers "
-        "WHERE deleted_at IS NULL "
+        "WHERE deleted_at IS NULL AND NOT privada "
         "ORDER BY parent_id NULLS FIRST, sort_order, id"
     )).fetchall()
     return [dict(zip(_LAYER_COLS, r)) for r in rows]
@@ -104,6 +107,19 @@ def _fetch_aliases(conn) -> dict[str, list[str]]:
     for layer_id, alias in rows:
         out.setdefault(layer_id, []).append(alias)
     return out
+
+
+def _ids_del_arbol(nodes: list[dict]) -> set[str]:
+    ids: set[str] = set()
+    for node in nodes:
+        ids.add(node['id'])
+        ids |= _ids_del_arbol(node.get('children') or [])
+    return ids
+
+
+def _solo_publicas(initial_order: list[str], tree: list[dict]) -> list[str]:
+    publicas = _ids_del_arbol(tree)
+    return [layer_id for layer_id in initial_order if layer_id in publicas]
 
 
 def _fetch_initial_order(conn) -> list[str]:
@@ -168,6 +184,8 @@ def _layer_to_search_meta(layer: dict) -> Optional[dict]:
         meta['hasMunicipio'] = True
         if layer.get('municipio_field'):
             meta['municipioField'] = layer['municipio_field']
+        if layer.get('municipio_field_type'):
+            meta['municipioFieldType'] = layer['municipio_field_type']
     if layer.get('has_direccion'):
         meta['hasDireccion'] = True
         if layer.get('direccion_field'):
@@ -251,6 +269,9 @@ def _layer_to_node(layer: dict, ws_map: dict[str, dict], aliases: dict[str, list
 
     if layer.get('highlight_shape'):
         node['highlightShape'] = layer['highlight_shape']
+
+    if layer.get('geometry_type'):
+        node['geometryType'] = layer['geometry_type']
 
     return node
 

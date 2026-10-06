@@ -1,5 +1,5 @@
 REFRESH_DEFAULT='periodicity layer-tree layer-stats'
-REFRESH_ALL='periodicity layer-tree layer-stats municipios cleanup-shares dump-layers-csv'
+REFRESH_ALL='periodicity layer-tree layer-stats municipios cleanup-shares dump-layers-csv geometry-type'
 
 require_production() {
     if [ "${ENV:-}" != 'production' ]; then
@@ -50,6 +50,7 @@ refresh_script() {
         municipios)      printf 'run_refresh_municipios.py' ;;
         cleanup-shares)  printf 'run_cleanup_shares.py' ;;
         dump-layers-csv) printf 'run_dump_layers_csv.py' ;;
+        geometry-type)   printf 'run_backfill_geometry_type.py' ;;
     esac
 }
 
