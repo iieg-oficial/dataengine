@@ -5,6 +5,9 @@ psycopg2-binary==2.9.11
 # Migrations
 alembic==1.13.3
 
+# Indice hexagonal H3 (hexbin del visor)
+h3==4.5.0
+
 # Configuration
 python-dotenv==1.2.1
 

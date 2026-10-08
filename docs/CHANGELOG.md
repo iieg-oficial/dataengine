@@ -6,6 +6,621 @@ El formato esta basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.
 y este proyecto se adhiere a [Versionado Semantico](https://semver.org/lang/es/). El versionado
 de `dataengine` es independiente del de MapaLab.
 
+## [1.49.0] - 2026-10-05
+
+### Agregado
+
+- **Migración `0055_instituto_elementos`**: lo necesario para levantar el plano del instituto en 3D y
+  caminarlo. `instituto.pisos` gana `nivel`, `altura` (3 m mientras no haya dato medido), `transitable`
+  y `con_plano`; `instituto.elementos` guarda muros, escaleras y volúmenes con `base` y `altura`
+  propias (nula toma la del piso). Una planta sin plano es un `volumen` sin divisiones. La geometría
+  se carga aparte, como en la `0052`; `mariachi_layers` solo la lee.
+
+## [1.48.0] - 2026-10-05
+
+### Agregado
+
+- **Migración `0054_legend_version`**: columna `mapalab.workspaces.legend_version`, entera y en 1 por
+  omisión. El visor la agrega a la URL de cada `GetLegendGraphic` y el botón «Vaciar cachés» de
+  mariachi la sube: al cambiar la URL, el gateway no encuentra la leyenda en su caché de seis horas
+  y la vuelve a pedir a GeoServer. Es idempotente (`ADD COLUMN IF NOT EXISTS`), y `mariachi_layers`
+  ya tenía `UPDATE` sobre la tabla.
+
+## [1.47.0] - 2026-10-05
+
+### Agregado
+
+- **Capas privadas de MapaLab** (migración `0053_capas_privadas`): `mapalab.layers.privada` saca un nodo del árbol público (una carpeta privada arrastra a sus descendientes), y cuatro tablas deciden quién lo ve: `usuarios` (por `sub` de minerva o dado de alta por correo antes del primer login), `grupos`, `grupo_miembros` y `capa_acceso` (una persona o un grupo por fila). minerva solo decide quién inicia sesión en el visor; el acceso por capa vive aquí porque minerva no expone sus grupos a los consumidores. `mariachi_layers` edita las cuatro
+- El job `run_refresh_layer_tree` deja fuera del árbol cacheado los nodos privados y sus descendientes, y los quita del orden inicial: el cron de las 04:00 no vuelve a publicarlos
+
+## [1.46.0] - 2026-10-05
+
+### Agregado
+
+- **Schema `instituto`** (migración `0052_instituto_espacios`): `pisos` (con el giro y el centro para dibujar el plano horizontal), `espacios` (nombre, tipo, piso, inclusión, trazo aproximado, orden y `geom` `MultiPolygon` en 6368) y `espacios_historial`. El historial lo llena un trigger `SECURITY DEFINER` con la fila completa antes y después, geometría incluida; quién y desde dónde salen de `instituto.actor` e `instituto.origen` (mariachi los fija con `SET LOCAL`), o del usuario de la sesión y `qgis`/`sql` por `application_name`. Un `UPDATE` que no cambia nada no se registra. `mariachi_layers` edita pisos y espacios y solo lee el historial. **La geometría no viene en la migración**: es el plano del edificio y se carga aparte en cada entorno
+
+## [1.45.3] - 2026-09-29
+
+### Corregido
+
+- El proxy del socket de Docker del sidecar `/ontoy` deja de ser `tecnativa/docker-socket-proxy`: con `CONTAINERS=1` también dejaba pedir `/containers/{id}/json` (el entorno, con secretos), `logs` y `archive` de cualquier contenedor del host. Ahora es `nginx:1.30.4-alpine` sin root, de solo lectura y sin capacidades, con `version-api/docker-proxy.conf`, que solo deja pasar `GET /containers/json` (con o sin prefijo `/vX.Y/`) y responde 403 a todo lo demás. Pide `DOCKER_GID` en el `.env`.
+- El respaldo falla si no logra subir el dump cifrado al acervo o si falta su configuración, en vez de terminar en verde sin copia fuera del servidor.
+
+## [1.45.2] - 2026-09-29
+
+### Corregido
+
+- El check `containers` de `/ontoy` ya no marca degradado un contenedor de un solo uso que terminó con código 0 (el `monitor-data-init` de huachicol), y el sidecar deja de contar su propia salud, que lo dejaba en `unhealthy` en cada arranque.
+
+## [1.45.1] - 2026-09-25
+
+### Corregido: `dataengine-network` podía perder su subred al crearse
+
+Compose crea las tres redes a la vez. `dataengine-docker-api` y `dataengine-ontoy-network` no
+tenían subred fija y tomaban la primera libre del pool del daemon; en una máquina cuyo pool empieza
+en la subred de `DATAENGINE_NETWORK_SUBNET`, una de ellas se la quedaba y el deploy moría con
+`Pool overlaps with other one on this address space`. Pasó en local al desplegar la 1.44.0. Ahora
+las dos llevan subred fija: `DATAENGINE_ONTOY_SUBNET` y `DATAENGINE_DOCKER_API_SUBNET`.
+
+**Al desplegar:** agregar las dos variables al `.env`, con subredes fuera de los
+`default-address-pools` del daemon, y borrar las dos redes antes de `make deploy`.
+
+## [1.45.0] - 2026-09-24
+
+### Eliminado: el legado `mapalab_card`
+
+- La migración `0051_drop_mapalab_card` borra `public.mapalab_card` con `IF EXISTS`. Antes se
+  verificó contra una copia de producción que sus 132 filas (130 capas distintas) están todas en
+  `mapalab.layer_metadata`.
+- Salen `jobs/bootstrap/run_migrate_mapalab_card.py`, `scripts/drop_mapalab_card_validation.sql`
+  (ya no corría: buscaba una columna `workspace` que la tabla nunca tuvo) y
+  `jobs/core/databases/factories.py`, que solo existía para esa conexión.
+- `bootstrap-v14.sh` pierde el paso 5 (migrar `mapalab_card`), el flag `--skip-migrate` y el
+  `GRANT SELECT` sobre la tabla.
+
+## [1.44.0] - 2026-09-24
+
+### Cambiado: el `/ontoy` sale de `jobs` a su propio `version-api`
+
+`jobs` juntaba en un solo contenedor root, el socket de Docker, el superusuario de Postgres, las
+llaves S3 de mapalab y el listener publicado en `PG_BIND_ADDRESS:8088`. Ahora `ontoy_server.py` vive
+en `version-api/`, igual que en el resto del ecosistema: sin credenciales de base ni de S3, como uid
+65534, publicado en el mismo `PG_BIND_ADDRESS:VERSION_API_PORT`, así que el target del monitor
+(`http://<S4>:8088/ontoy`) no cambia. Lee `VERSION` y `docs/CHANGELOG.md` para `released_at`.
+
+Los contenedores los consulta por un `docker-socket-proxy` (`tecnativa/docker-socket-proxy:v0.5.0`)
+con `CONTAINERS=1` y todo lo demás en 0, en la red interna `dataengine-docker-api`. Ningún servicio
+del repo monta ya `docker.sock` salvo el proxy. El healthcheck de `jobs` pasa a vigilar el pid de cron.
+
+### Cambiado: el refresh de estadísticas corre con un rol de solo lectura (migración 0050)
+
+`run_refresh_layer_stats.py` ejecutaba los `stats_config` de mariachi como superusuario y sin lista de
+schemas: una configuración podía leer `pg_authid` y dejarlo en `layer_stats.values`, que el visor
+publica. Cada stat corre ahora bajo `SET LOCAL ROLE mapalab_stats` dentro de su savepoint, y antes de
+ejecutarse el schema se valida contra `mapalab.workspaces` (sin `mapalab`).
+
+La migración `0050_rol_stats_lectura` crea `mapalab_stats` sin login, con USAGE y SELECT sobre los
+schemas del catálogo. Un workspace nuevo necesita reaplicar `scripts/stats_read_grants.sql`, que ya
+cubre los dos roles. Si se usa `MAPALAB_STATS_DB_USER`, ese usuario debe ser miembro de
+`mapalab_stats`.
+
+### Cambiado: pgbouncer solo en `127.0.0.1` y con contraseña de admin propia
+
+Nadie usa el 6432 desde fuera del nodo: mariachi, mapalab y sextante van al 5432. Lo único que lo
+tocaba eran los `ONTOY_PEER_CHECKS` de S1, S2 y S3, que deben apuntar a `<S4>:5432`. El puerto se
+publica en `127.0.0.1`, `pgbouncer_admin` lee su contraseña del secret
+`dataengine_pgbouncer_admin_password` (el arranque falla si es igual a la del superusuario) y la
+conexión a Postgres exige TLS (`server_tls_sslmode = require`).
+
+### Cambiado: `pg_hba` acota la red docker a `hostssl` sobre `dataengine-network`
+
+La regla `host 172.16.0.0/12` cambia a `hostssl ${DATAENGINE_NETWORK_SUBNET}`, y la subred queda fija
+en el compose. **`pg_hba.conf` solo se genera al inicializar el volumen**: en los entornos existentes
+hay que editar el vivo y recargar (`SELECT pg_reload_conf();`). Un cliente del monolito que entre por
+`host.docker.internal` ya no cae en esa regla: su subred va en `ALLOWED_HOSTS`.
+
+### Cambiado: contraseñas y llaves fuera del entorno de los contenedores
+
+pgbouncer, `pg-backup` y `jobs` leen la contraseña de `dataengine_postgres_password` por `*_FILE`;
+las llaves de mapalab en el Acervo pasan a los secrets `dataengine_mapalab_ao_access_key` y
+`dataengine_mapalab_ao_secret_key`. `POSTGRES_PASSWORD`, `MAPALAB_AO_ACCESS_KEY` y
+`MAPALAB_AO_SECRET_KEY` salen del `.env`. pgbouncer corre como uid 70 y lee los secrets por
+`group_add` (`DATAENGINE_SECRETS_GID`): los archivos van en `0640` con ese grupo.
+
+### Cambiado: respaldos cifrados con `age` y subidos con `rclone`
+
+`dl.min.io` responde 410 desde que MinIO archivó `mc`: la imagen de `pg-backup` ya no se podía
+construir. `rclone` y `age` salen de `apk`, firmados por Alpine. Las llaves van por
+`RCLONE_CONFIG_ACERVO_*`, no en argv. Antes de subir, el dump se cifra con `BACKUP_AGE_RECIPIENT`
+(obligatoria) y al bucket llega `<dump>.age`; la copia local sigue en claro con `0600`. Restaurar
+desde el Acervo pide la llave privada: `age -d -i <llave> -o dump.sql.gz dump.sql.gz.age`.
+
+### Corregido: los jobs de cron no recibían `GEOSERVER_URL`
+
+`entrypoint.sh` volcaba a `/etc/environment` todo lo que empezara por `DATAENGINE_`, `AO_` o
+`MAPALAB_AO_`, secretos incluidos, y dejaba fuera `GEOSERVER_URL`: el hexbin de las 04:15 fallaba.
+Ahora escribe una lista explícita de variables, con `GEOSERVER_URL` y las rutas `*_FILE` de los
+secretos en vez de sus valores.
+
+### Corregido: las contraseñas de rol no quedan en el log de Postgres
+
+`bootstrap-v14.sh` hace `SET log_statement = 'none'` y `SET log_min_error_statement = 'panic'` en la
+misma sesión antes de `CREATE ROLE` / `ALTER ROLE ... PASSWORD`; con `log_statement = 'ddl'` la
+contraseña quedaba en claro en los logs. Toma la contraseña del secret si no está en el `.env`.
+
+### Al desplegar
+
+Crear `secrets/dataengine_pgbouncer_admin_password`, `secrets/dataengine_mapalab_ao_access_key` y
+`secrets/dataengine_mapalab_ao_secret_key` (`0640`, grupo de `DATAENGINE_SECRETS_GID`); agregar al
+`.env` `BACKUP_AGE_RECIPIENT`, `DATAENGINE_NETWORK_SUBNET` y `DATAENGINE_SECRETS_GID`; `make down` y
+`make deploy` para recrear la red con subred fija; `make migrate` para la 0050; editar el
+`pg_hba.conf` vivo. `jobs` y `pg-backup` siguen como root: cron de Debian y `crond` de busybox lo
+necesitan.
+
+## [1.43.0] - 2026-09-04
+
+### Agregado: la periodicidad alimenta la fecha y la frecuencia de la ficha
+
+La ficha de cada capa pide dos datos que el sistema ya conoce: cada cuanto se actualiza y cuando fue
+la ultima vez. Se capturaban a mano en las 130 fichas y **85 capas con periodicidad calculada los
+tenian vacios**.
+
+`public.layer_periodicity` ya sabe, para cada tabla con columna `fecha`, todos los periodos que
+existen: la llena este mismo job cada noche. De ahi salen los dos datos sin consultar nada nuevo.
+
+La migracion `0047` agrega a `mapalab.layer_metadata` las columnas `fecha_ultima_sugerida`,
+`frecuencia_sugerida` y `sugerencias_actualizadas_en`, y `run_refresh_periodicity.py` las escribe
+despues de refrescar la periodicidad.
+
+**El job nunca toca `fecha_ultima` ni `frecuencia`.** Lo capturado a mano gana: sin esa separacion
+no habria manera de distinguir «nadie lo ha llenado» de «alguien decidio este valor», y una
+correccion deliberada se perderia en el refresh de la noche. El editor de mariachi ofrece la
+sugerencia con una bombilla y aplicarla es una accion explicita de la persona.
+
+La frecuencia se deduce de la **mediana de las brechas** entre fechas consecutivas, no de contar
+entradas por año: una serie con huecos —lo normal en datos historicos— desordena el conteo y no la
+mediana. Con un solo periodo no sugiere frecuencia, porque no hay brecha que medir.
+
+## [1.42.0] - 2026-08-28
+
+### Agregado: schema `atributos` con la configuracion de columnas del visor
+
+La tabla de atributos de mapalab lee las columnas por WFS y le llegan con el nombre crudo de la
+base. `atributos.columnas` guarda por capa el alias, el orden, la visibilidad y el formato, que es
+lo unico de esa herramienta que necesita persistir: las filas y los conteos salen del WFS en cada
+consulta y no se cachean.
+
+Va en un schema propio y no en `mapalab` para separar la configuracion de una herramienta del visor
+del catalogo institucional. La bajada es un `DROP SCHEMA atributos CASCADE` que no roza ninguna
+tabla del catalogo.
+
+Los `GRANT` para `mariachi_layers` van en la misma revision —`USAGE` del schema, DML de las tablas y
+`USAGE` de las secuencias— mas un `ALTER DEFAULT PRIVILEGES` para que la siguiente tabla del schema
+no repita el clasico GET que funciona con POST que responde 500.
+
+## [1.41.0] - 2026-08-27
+
+### Agregado: el `/ontoy` declara a que nodo pertenece
+
+huachicol 2.9.0 amplio el contrato para que el monitor agrupe por servidor y no solo por servicio.
+`ONTOY_NODE` dice donde corre este repo —**S4**— y `ONTOY_NODE_REPORTER` decide quien habla del
+host. Es el reportero de su nodo, asi que su `/ontoy` agrega carga, RAM, swap y uptime, leidos de `/proc` sin exporters ni puertos nuevos.
+
+`ONTOY_PEER_CHECKS` queda disponible para las aristas entre nodos; vacia por omision.
+
+**Las dos primeras son obligatorias**: el compose falla si faltan, asi que hay que agregarlas al
+`.env` de cada entorno antes de desplegar.
+
+De paso, `ontoy_server.py` se sincroniza con el de huachicol, que es la fuente y llevaba tiempo
+divergiendo entre copias. Los checks de maquina quedan marcados como informativos y ya no tumban el
+estado del servicio.
+
+## [1.40.0] - 2026-08-24
+
+### Corregido: 195 parcelas de cultivo de la ribera de Chapala sin municipio (migracion 0044)
+
+La `0023` dejo `economia.cultivos` en 99.40 % con **2 068 parcelas en `NULL`**, anotadas entonces
+como "borde y costa". Medidas ahora, son **dos cosas distintas** y solo una era un hueco:
+
+| | Parcelas | Hectareas | Que son |
+|---|---|---|---|
+| Fuera del limite estatal | **1 873** (90.6 %) | 3 317.9 | La capa cubre terreno de estados vecinos. `NULL` es correcto |
+| Dentro de Jalisco | **195** (9.4 %) | 615.6 | Hueco real del mosaico municipal |
+
+Las 195 se concentran en cuatro municipios riberenos de Chapala —**183 de Jamay**, mas Jocotepec,
+Tizapan el Alto y Tuxcueca—: tierra de cauce recuperado que ningun poligono municipal cubre. Estan
+entre 9 m y 1 311 m del municipio mas cercano.
+
+**El criterio es la pertenencia al estado, no una tolerancia en metros.** Un umbral fijo habria
+rescatado parcelas de Zacatecas a 50 m de la frontera y dejado fuera las de Jamay a 1.3 km, que son
+justo las que si son de Jalisco. Se asignan por vecino mas cercano con `<->`, acotando a las que
+`mapa_base.limite_estatal` contiene.
+
+Cobertura: **99.40 % -> 99.46 %**. Las 1 873 de fuera se quedan en `NULL` a proposito.
+
+**Queda un pendiente que no es de esta migracion:** el mosaico de `mapa_base.limite_municipal`
+tiene huecos dentro del estado en la ribera de Chapala. Lo correcto a mediano plazo es corregir el
+limite, no parchar cada capa que caiga en el hueco.
+
+### Agregado: declarar el campo de municipio en las capas (migracion 0043)
+
+Las migraciones `0023`, `0040`, `0041` y `0042` dejaron el dato en la base, pero **ninguna declaraba
+nada en `mapalab.layers`**. Sin `has_municipio`, `municipio_field` y `municipio_field_type` el visor
+sigue recortando por `BBOX`, asi que el trabajo de las cuatro no se notaba. Esa configuracion se
+edita desde mariachi, pero son mas de 180 capas: a mano no es reproducible entre entornos.
+
+**No trae una lista de ids.** Recorre las capas vivas, resuelve su tabla via `mapalab.workspaces` y
+elige el campo comprobando **los valores contra `mapalab.municipios`**, no el nombre de la columna.
+Acepta una candidata solo si al menos el 90 % de sus valores distintos empata: por `clave_geo` las
+de clave, por nombre normalizado las de nombre. Prefiere siempre la clave.
+
+Esa comprobacion sale de dos casos reales que el nombre de columna habria dado por buenos:
+`mapa_base.cabeceras_municipales` tenia un `clave_municipio` **sin prefijo de estado** —`01`, `02`—
+que no empata con ninguna clave de cinco digitos, y en trece capas —aeropuertos, cuerpos de agua,
+rutas de eventos— `nombre` es el nombre **del propio elemento**.
+
+Validada contra las 203 capas resolubles del catalogo, comparando su eleccion con la que se hizo a
+mano tras probar el CQL real por WFS: **203 coincidencias, 0 discrepancias**, incluidos los rechazos.
+
+Idempotente: solo toca las capas que aun no declaran nada. Despues hay que recargar el catalogo de
+GeoServer y correr `run_refresh_layer_tree.py`.
+
+### Agregado: `clave_municipio` por coordenada en trece capas de puntos (migracion 0042)
+
+Estaciones y paradas de transporte, estaciones MiBici, aeropuertos y los puntos de eventos no
+tenian forma de identificar su municipio: el visor los recortaba con el `BBOX` de la seleccion y el
+job del hexbin los contaba con `clave_municipio` nula.
+
+A diferencia de la `0040` y la `0041`, estas tablas **no traen ningun codigo del que derivarla**,
+asi que aqui si toca calcularla: spatial join punto-en-poligono contra `mapa_base.limite_municipal`
+con `ST_PointOnSurface`, el mismo camino de la `0023` para `economia.cultivos`. Las trece tablas y
+el limite estan en EPSG:6368, sin reproyeccion de por medio.
+
+Un punto pertenece a un solo municipio, asi que **no hay nada que decidir**. Eso separa este caso
+del de las capas lineales y poligonales, donde un 5-6 % de los features cruza mas de un municipio
+—medido: 550 de 9 107 en `caminos_2012`, 962 de 19 756 en una muestra de `itur_iieg`, maximo tres
+municipios en ambas— y hay que elegir entre duplicar la fila o quedarse con una. Esa decision sigue
+abierta.
+
+Son 699 filas entre las trece, todas resueltas. Aplicada y comprobada por WFS: `estaciones_mibici`
+devuelve 368 de 384 al filtrar por Guadalajara y Zapopan.
+
+**Con esto el desglose del hexbin queda completo**: 90 de 91 capas con cobertura total y **un solo
+punto sin municipio** en 669 288 —una fila de `robos_negocio_con_violencia` con `municipio` nulo en
+el origen—, contra los 6 223 del 2026-08-21.
+
+### Agregado: columna `clave_geo` en `mapa_base.cabeceras_municipales` (migracion 0041)
+
+La tabla ya traia `clave_municipio`, pero **sin el prefijo de estado**: `varchar(3)` con valores
+`01`, `02`, `125`. El visor filtra con la clave INEGI de cinco digitos, asi que
+`clave_municipio IN ('14039','14120')` no empataba con ninguna fila.
+
+Se detecto al probar el CQL real contra cada tabla antes de declararla en el catalogo: **por
+nombre de columna esta habria pasado como buena**, y la capa se habria vaciado al elegir municipio
+en vez de mostrar de mas. El nombre `clave_geo` es el que usa el resto del ecosistema
+—`mapalab.municipios.clave_geo`— y el que el plan `clave-municipio-en-tablas.md` ya daba por
+existente aqui.
+
+Columna generada, como en la `0040`: `'14' || lpad(clave_municipio, 3, '0')`. Verificado sobre las
+125 filas, empata al 100 %, de `14001` a `14125`. Aplicada y comprobada por WFS.
+
+**Va antes que la `0045` a proposito.** La `0045` reescribe 39 GB y necesita ventana; esta cuesta
+125 filas. Encadenarlas al reves obligaba a esperar a la pesada para tener la barata.
+
+
+### Agregado: migracion `0045_matviews_fid` — el identificador que faltaba para paginar
+
+**El gate quedo cerrado.** El analisis del 2026-07-31 dejo abierto si GeoTools acepta un indice
+unico sobre una vista materializada como clave, o si hacia falta `gt_pk_metadata`. Comprobado el
+2026-08-24 publicando una matview de prueba con un unico indice sobre `fid`:
+`GetFeature&startIndex=5&count=2` devolvio **200** y los ids `pk_probe.6` y `pk_probe.7`. La
+heuristica sobre indices unicos basta; no hace falta `gt_pk_metadata`.
+
+Como ninguna de las 83 matviews trae `fid` —lo que convierte a la `0039` en un no-op— y sus
+columnas no forman llave natural, la migracion lo fabrica con `row_number() OVER ()`. Postgres no
+permite agregar una columna a una matview, asi que cada una se reconstruye envolviendo su propia
+definicion, se cambia por la original y se le devuelven indices y permisos, todo leido del
+catalogo porque este repo no declara estas vistas.
+
+**Dos trampas que costaron sendos bugs antes de quedar bien:**
+
+- `information_schema` **no incluye vistas materializadas**. Leer de ahi los grants devuelve vacio
+  y la reconstruccion se lleva en silencio el `SELECT` de `mariachi_layers`. Se leen de
+  `pg_class.relacl` con `aclexplode`.
+- Una matview **no admite `ALTER ... DROP COLUMN`**, asi que el `downgrade` no puede quitar `fid`
+  a posteriori: reconstruye con la lista explicita de columnas.
+
+**Sin aplicar. Va en ventana de mantenimiento: son 39 GB en 83 vistas**, no los ~1.25 GB que
+estimaba el analisis original. Cada vista queda bloqueada mientras se reconstruye y alembic corre
+todo en una transaccion. A favor: **cero dependencias entre matviews**, asi que no hay orden que
+respetar. Conviene medirla primero sobre `delitos_fiscalia_robo_bancos`, la mas chica con 56 kB.
+
+## [1.39.0] - 2026-08-21
+
+### Agregado: `clave_municipio` en `espacios_publicos_y_lugares_recreativos` (migracion 0040)
+
+Seis capas del visor salen de esa tabla —plaza, mercado, instalacion deportiva o recreativa,
+centro comercial, instalacion gubernamental e instalacion de servicios— y ninguna se podia filtrar
+por municipio. En `mapalab.hexbin_counts` se veia como **6 222 puntos con `clave_municipio` nula**:
+todo el faltante del precalculado salvo una fila.
+
+**No hizo falta spatial join: la clave ya estaba en el dato.** `cvegeo` es el geocodigo INEGI a
+nivel manzana y sus primeros cinco digitos son la clave del municipio. Verificado sobre las 5 780
+filas: `left(cvegeo, 5)` empata con `mapalab.municipios.clave_geo` en el **100 %**, sin nulos,
+incluidas las seis filas de 13 caracteres.
+
+Por eso la columna es `GENERATED ALWAYS AS (left(cvegeo, 5)) STORED` y no un backfill: se deriva
+sola en cada alta y no puede quedar desalineada del `cvegeo` que la origina. Lleva indice btree.
+Probado contra la base en una transaccion revertida: 5 780 filas con clave, **125 municipios**,
+cero claves fuera del catalogo.
+
+**Faltan dos pasos que no son SQL**: declarar `municipio_field='clave_municipio'` y
+`municipio_field_type='clave'` en las seis capas desde mariachi, y correr `make refresh-layer-tree`.
+
+### Cambiado: `run_refresh_hexbin.py` acepta un campo de clave, no solo de nombre
+
+La columna de la `0040` no servia de nada para el precalculado. El job buscaba el municipio entre
+`municipio`, `nombre_municipio` y `mun`, y resolvia **por nombre** contra `mapalab.municipios`:
+`clave_municipio` no estaba en esa lista, y aunque se agregara, habria buscado `'14120'` en un
+diccionario indexado por nombres. La migracion arreglaba el filtro del visor y dejaba los 6 222
+NULL del hexbin intactos.
+
+Ahora `_propiedades` detecta tambien un campo de clave —`clave_municipio` o `clave_geo`— y
+`_clave_de` lo prefiere sobre el de nombre, validandolo contra las claves de `mapalab.municipios`
+antes de aceptarlo. Si la clave falta, viene nula o no esta en el catalogo, cae al nombre como
+siempre: las capas que hoy resuelven al 100 % no cambian de comportamiento.
+
+Probado con los ocho casos: clave directa, clave sobre nombre, clave invalida, clave nula, solo
+nombre, nombre en mayusculas, nombre nulo y sin campos.
+
+Las otras ocho capas sin desglose municipal son las `auto-eventos-*` del schema `eventos`, que no
+traen `cvegeo` ni campo de municipio. Suman ~442 puntos y si las necesitan requieren spatial join.
+
+### Agregado: filtros compuestos y placeholders de contexto en las estadisticas
+
+Una estadistica podia llevar **una** condicion, de igualdad exacta, contra un valor fijo
+(`where_field` = `where_value`). Ahora lleva hasta seis, con `eq`, `in`, `gte`, `lte`, `between` e
+`is_not_null`, y aplica a todas las primitivas, no solo a `count_where`:
+
+```json
+"filters": [
+  {"field": "nivel_educativo", "op": "eq",      "value": "Primaria"},
+  {"field": "municipio",       "op": "in",      "value": "{{municipio.nombres}}"},
+  {"field": "fecha",           "op": "between", "value": ["{{fecha.inicio}}", "{{fecha.fin}}"]}
+]
+```
+
+Un valor con forma `{{clave}}` no es literal: se resuelve al ejecutar contra una lista blanca de
+cuatro claves (`municipio.claves`, `municipio.nombres`, `fecha.inicio`, `fecha.fin`) y **siempre
+por bind param**, nunca interpolado. El SQL lo sigue armando el motor.
+
+**La regla que sostiene el diseno:** si un placeholder no trae valor, el filtro **se omite**. El
+cron corre sin contexto, asi que persiste el total sin filtrar como hasta ahora; la misma
+configuracion sirve despues para la vista filtrada del visor, sin duplicarla por capa.
+
+`where_field`/`where_value` siguen funcionando y se traducen a un filtro `eq` que conserva el
+nombre del bind, asi que las configuraciones ya guardadas no cambian de SQL. Verificado contra
+`educacion.centros_educativos`: los dos motores generan el mismo SQL y el mismo resultado en los
+seis casos probados, y las seis capas con `stats_config` refrescan sin errores.
+
+### Agregado: `scripts/stats_read_grants.sql`
+
+Los GRANT de lectura que `mariachi_layers` necesita sobre los schemas tematicos —los que la
+migracion `0031_stats_read_grants` concede— **no sobreviven a un restore**. Restaurar un dump sobre
+una base ya migrada devuelve los privilegios al estado del dump sin tocar `alembic_version`, asi que
+`alembic current` sigue reportando la revision aplicada mientras los permisos ya no estan.
+
+El sintoma es asimetrico y despista: el cron de estadisticas corre como `gisuser` y calcula bien,
+pero el preview y el recalculo del panel de mariachi corren como `mariachi_layers` y responden 502
+`permission denied for schema`. Se detecto asi el 2026-08-21, con los grants caidos desde algun
+restore anterior.
+
+El script es el cuerpo `DO $$` de la migracion, extraido para reejecutarlo sin tocar
+`alembic_version`. Es idempotente y deriva los schemas de `mapalab.workspaces`, de modo que sigue al
+catalogo real de cada entorno. Se corre despues de cada restore:
+
+```bash
+docker exec dataengine-primary sh -c '
+  PGPASSWORD=$(cat "$POSTGRES_PASSWORD_FILE") \
+  psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -v ON_ERROR_STOP=1 \
+       -f /scripts/stats_read_grants.sql'
+```
+
+Termina imprimiendo una fila por workspace del catalogo: todas deben decir `t`.
+
+### Corregido: `count_where` exigia una columna que no usaba
+
+`_build_query` arma el `count_where` como `SELECT COUNT(*) … WHERE "<where_field>" = :valor` y nunca
+toca `field`, pero la validacion lo pedia para toda operacion distinta de `count`. El mismo cambio
+va en `mariachi/api/app/services/stats_templates.py`: el motor esta duplicado a proposito entre los
+dos repos y una regla que solo cambie de un lado hace que el cron descarte lo que el CMS guarda.
+
+De paso, `field` ahora se valida como identificador **cuando viene presente**, tambien en las
+operaciones que no lo requieren. Antes un `field` con contenido arbitrario pasaba sin revisar si la
+operacion no lo necesitaba; no era explotable —nunca llegaba al SQL— pero era una diferencia
+gratuita con el motor de mariachi, que si lo validaba.
+
+## [1.38.0] - 2026-08-21
+
+### Agregado: `scripts/check-wfs-pagination.sh`
+
+Recorre todas las capas del `GetCapabilities` de WFS y lanza a cada una un
+`GetFeature&count=1&startIndex=0`, que es la prueba que separa a las que paginan de las que no.
+Reporta capa por capa, agrupa las que fallan por workspace y sale con codigo 1 si hay alguna.
+Formaliza una verificacion que se hacia a mano. Requiere `User-Agent` propio: el gateway bloquea
+el de `curl` en `/sextante/ows`.
+
+Medido contra el espejo el 2026-08-21: **46 de 121 capas paginan, 75 fallan** —
+`seguridad_y_proteccion_ciudadana` 35, `desarrollo_social` 20, `demografia` 8,
+`gobierno_y_ciudadania` 5, `economia` 5, `educacion` 1, `mapalab` 1. La ultima auditoria manual
+(2026-07-31) contaba 73 en cinco workspaces: `educacion:centros_educativos` y
+`mapalab:hexbin_agregado` se sumaron despues.
+
+### Agregado: migracion `0039_matviews_unique_fid`, hoy un no-op
+
+Crea `CREATE UNIQUE INDEX (fid)` en cada vista materializada que tenga columna `fid` y ningun
+indice unico, para que GeoServer pueda paginarlas. Como la `0034`, descubre las vistas con un `DO`
+block sobre `pg_class` y no con una lista fija, verifica que `fid` sea unico y no nulo antes de
+cada indice —un `CREATE UNIQUE INDEX` sobre duplicados abortaria la transaccion entera— y reporta
+creados y omitidos.
+
+**No crea ningun indice hoy.** El analisis del 2026-07-31 asumia que las 82 matviews traian
+columna `fid`. Verificado contra la base el 2026-08-21: **ninguna de las 83 la tiene**, ni ellas ni
+sus tablas base. `fid` existe en 55 tablas normales, que son justo las que ya paginan. La
+migracion queda como red por si la columna llega, pero **la paginacion sigue rota** y el arreglo
+real es fabricar el identificador: recrear las matviews con `row_number() OVER () AS fid`, o
+publicarlas como SQL view en GeoServer declarando el identificador.
+
+Cuando haya columna y la migracion cree indices, dos cosas mas: **va en ventana de mantenimiento**
+—Alembic corre en transaccion, asi que no puede usar `CONCURRENTLY` y cada indice toma
+`ACCESS EXCLUSIVE` sobre su matview; la `0034` tardo 18 min 41 s sobre las 83— y **hay que
+recargar el datastore en GeoServer**, que resuelve la clave al cargar el featuretype y la cachea.
+
+## [1.37.0] - 2026-08-21
+
+### Agregado: `make migrate` deja el catalogo listo, no solo migrado
+
+Restaurar un dump viejo y migrarlo dejaba la caracteristica del hexbin **muerta en silencio**. La
+migracion `0036_layer_geometry_type` crea la columna a proposito vacia —clasificar necesita hablar
+con GeoServer, que no es trabajo de una migracion— y delega el relleno a
+`run_backfill_geometry_type.py`. Si nadie lo corre, las 205 capas del catalogo quedan con
+`geometry_type IS NULL`, `run_refresh_hexbin.py` no encuentra ninguna capa de puntos y **termina con
+exit 0 diciendo «0 capas precalculadas»**. Para el orquestador eso es exito; para quien abre el
+visor, la caracteristica no existe.
+
+`migrate` ahora encadena los dos jobs despues del `alembic upgrade head`:
+
+- **Geometrias** — `run_backfill_geometry_type.py` completo. Su `UPDATE` lleva
+  `AND geometry_type IS DISTINCT FROM :tipo`, asi que no escribe si nada cambio. Medido: **2 s**
+  para 209 capas.
+- **Hexbin pendiente** — `run_refresh_hexbin.py --pendientes`.
+
+### Agregado: `run_refresh_hexbin.py --pendientes`
+
+Procesa solo las capas de puntos **sin filas en `hexbin_counts`**, para que el `migrate` no repita el
+recalculo completo. Sin la bandera el comportamiento no cambia: el cron de las 04:15 sigue
+reagregando todo.
+
+Medido en el mismo catalogo: **2 min** la corrida completa (91 capas), **0.38 s** la de pendientes
+cuando no hay nada nuevo.
+
+El job ademas **avisa de las capas sin `geometry_type`** en vez de ignorarlas, que era la forma en que
+el fallo pasaba desapercibido.
+
+**Ojo:** «sin conteos» no es «pendiente». De 101 capas de puntos, 9 no producen ningun conteo (sin
+features, o sin campo de fecha o municipio con que agregar) y 1 falla por WFS
+(`salud:unidades_salud`, HTTP 400). Esas 10 se reintentan en cada `migrate` — barato, pero por eso el
+guardia vive en el job y no en un `if` del Makefile: contarlas desde afuera daria «faltan 10» para
+siempre y dispararia el recalculo completo en cada deploy.
+
+## [1.36.0] - 2026-08-18
+
+### Cambiado: el hexbin precalcula tambien las resoluciones 5 y 8
+
+El visor traduce zoom a resolucion H3 con una tabla propia, y las cuatro que guardaba el job —3, 4,
+6 y 7— **no cubrian el zoom inicial**: al abrir el mapa se pide la 5, que no existia, asi que la
+capa caia al calculo en el navegador y ahi el tope de 20 000 la rechazaba. Los zooms 12 y 13, que
+piden la 8, tenian el mismo problema.
+
+Ahora precalcula **3, 4, 5, 6, 7 y 8**. El costo esta medido: los conteos pasan de 203 739 filas y
+44 MB a **457 550 filas y 114 MB**, y las celdas compartidas de 6 297 a 16 716 (5 MB). De la 9 en
+adelante —zoom 14 y mas cerca— sigue resolviendo el navegador.
+
+## [1.35.0] - 2026-08-18
+
+### Agregado: `mapalab.hexbin_agregado`, la vista que publica el hexbin en GeoServer
+
+La 1.34.0 dejo los conteos H3 en dos tablas, pero GeoServer necesita **una** entidad con geometria
+para publicar una capa. La vista hace el join entre `hexbin_counts` y `hexbin_cells` y expone las
+columnas planas para filtrar con CQL:
+
+    layer_key = 'violencia_familiar' AND resolution = 7
+      AND anio IS NULL AND clave_municipio IS NULL
+
+Es una vista de base y no una SQL view de GeoServer a proposito: asi la definicion vive versionada
+en la migracion y GeoServer solo la registra. El `fid` existe porque el WFS necesita un
+identificador estable por fila y la unicidad aqui es la tupla completa.
+
+Publicada en el workspace `general` sobre un datastore nuevo `mapalab_hexbin` que apunta al schema
+`mapalab`. Comprobado por WFS: devuelve el poligono de la celda, su indice H3 y el total.
+
+## [1.34.0] - 2026-08-18
+
+### Agregado: conteos H3 precalculados para el hexbin del visor
+
+MapaLab agrupa puntos en hexagonos H3 desde su 1.129.0, pero lo hace en el navegador: hay que
+traerse los puntos. Medido contra la capa peor, `delitos_fiscalia_violencia_familiar` con 110 215
+puntos, eso son **50 MB de GeoJSON y 82 MB de heap**, y se paga en cada F5 porque el visor guarda
+en `sessionStorage` el estado, nunca las geometrias. De ahi su tope de 20 000 elementos.
+
+Dos tablas nuevas en `mapalab` y un job que las puebla a las **04:15**:
+
+| Tabla | Contenido | Medido |
+|---|---|---|
+| `hexbin_cells` | `(resolution, h3_index) -> geom`, compartida por todo el catalogo | 6 297 filas, **1.9 MB** |
+| `hexbin_counts` | `(layer_key, resolution, h3_index, anio, clave_municipio, total)` | 203 739 filas, **44 MB** |
+
+Son dos y no una por algo que **solo H3 permite**: la celda `8a2a1072b59ffff` es la misma para
+delitos y para escuelas, asi que su poligono se guarda una vez. Con una rejilla arbitraria habria
+que repetirlo por capa.
+
+El conteo va por **anio y municipio como columnas**, no resuelto por geometria: una celda de r7 mide
+1.5 km de lado y las del borde contienen puntos de dos municipios. Como columna el conteo es exacto.
+Cuesta poco: en r7 son 9 171 filas en vez de 2 169, no 2 169 x 10 anios x 125 municipios, porque
+cada punto cae en un solo anio y un solo municipio.
+
+Las resoluciones son **3, 4, 6 y 7** —estado y municipio—; de 8 hacia abajo lo sigue cubriendo el
+calculo en el navegador, que ademas respeta cualquier filtro dinamico.
+
+El indice lo calcula **Python con el paquete `h3`**, no la base: compilar `h3-pg` en la imagen
+`postgis/postgis:18-3.6-alpine` obligaria a mantener una imagen propia de Postgres. Comprobado que
+Python y JavaScript devuelven la misma celda para el mismo punto, que es lo que permite que el
+precalculado y el calculo en cliente coincidan.
+
+El job lee por **WFS**, no de las tablas: las capas publicadas no siempre son tablas. Las 11 de
+delitos son la misma `seguridad_y_proteccion_ciudadana.delitos_fiscalia` con distinto filtro en
+GeoServer, asi que leer de la base obligaria a replicar esos filtros. Pide solo la geometria, la
+fecha y el municipio, y aplica el `cql_filter` del catalogo.
+
+`layer_key` es el **id del nodo** del catalogo, no el typename: varios nodos comparten tabla con
+distinto filtro y usar el typename hacia que se pisaran entre ellos.
+
+`anio` y `clave_municipio` son nullable a proposito: hay capas de puntos sin fecha y sin municipio,
+y la fila con los dos en NULL es el total de la celda sin desglosar.
+
+No se toca ninguna tabla tematica y la bajada de la migracion es un `DROP`.
+
+## [1.33.0] - 2026-08-10
+
+### Agregado: `mapalab.layers.geometry_type`, el tipo de geometría del catálogo
+
+El visor y el plugin de QGIS ya sabían dibujar el tipo de geometría de una capa, pero el dato no
+existía en ninguna parte: cada cliente lo resolvía en caliente con un `DescribeFeatureType` por
+capa —el visor al abrir el panel de capas activas, el plugin al pintar cada fila—. Con 115
+`typeName` distintos entre las 209 hojas del catálogo, eso es una ráfaga de peticiones a GeoServer
+por sesión, y basta que una falle para que el ícono no aparezca.
+
+La columna guarda el dato una sola vez, con los valores que ya espera el frontend y sin traducción
+intermedia: `point`, `line`, `polygon`, `raster`. Queda nullable porque los nodos que no son capa
+no tienen geometría y porque hay capas de las que no se puede deducir.
+
+`run_backfill_geometry_type.py` la puebla. El ráster se resuelve sin red —`raster_periodicity` o
+workspace en `raster`/`lluvia`/`temperatura`, 4 capas— y el resto sale del `DescribeFeatureType`
+del WFS, memorizado por `typeName` para no repetir la consulta de las capas que comparten tabla.
+Se lee `localType` además de `type`, porque GeoServer marca como `gml:*` solo la geometría por
+defecto y una segunda columna geométrica aparece como `xsd:MultiPolygon`.
+
+Resultado de la primera corrida: 101 punto, 93 polígono, 10 línea, 4 ráster. Queda una sin
+clasificar, `curvas_de_nivel`, que se publica solo por WMS —su `wfs_available` es `FALSE` y
+GeoServer responde `Could not find type` al describirla—, así que no hay de dónde deducirla; se
+ajusta a mano desde el editor de capas de mariachi.
+
+El job queda registrado como `geometry-type` en `make refresh`, fuera de la lista por defecto:
+habla con GeoServer y no tiene por qué correr en cada refresco rutinario. Necesita `GEOSERVER_URL`
+en el `.env`.
+
+`run_refresh_layer_tree.py` publica el campo como `geometryType` en el árbol. Sin eso, el cron de
+las 4:00 reconstruiría la caché sin el dato y el ícono desaparecería del visor cada madrugada.
 ## [1.32.4] - 2026-09-24
 
 ### Corregido: las stats de mariachi podían leer cualquier tabla de la base

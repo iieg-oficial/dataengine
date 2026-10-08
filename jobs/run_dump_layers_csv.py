@@ -10,6 +10,7 @@ from botocore.exceptions import ClientError, BotoCoreError
 from sqlalchemy import create_engine, text
 
 from core.utils.logger import Logger
+from core.utils.secretos import leer_secreto
 
 
 MAX_COMPRESSED_BYTES = 2 * 1024 * 1024 * 1024
@@ -24,8 +25,8 @@ def main() -> int:
 
     bucket = os.getenv('MAPALAB_AO_BUCKET')
     endpoint = os.getenv('AO_ENDPOINT')
-    access_key = os.getenv('MAPALAB_AO_ACCESS_KEY')
-    secret_key = os.getenv('MAPALAB_AO_SECRET_KEY')
+    access_key = leer_secreto('MAPALAB_AO_ACCESS_KEY')
+    secret_key = leer_secreto('MAPALAB_AO_SECRET_KEY')
     if not (bucket and endpoint and access_key and secret_key):
         Logger.info(
             'Acervo/mapalab no configurado (MAPALAB_AO_BUCKET, AO_ENDPOINT, '
@@ -259,7 +260,7 @@ def _upsert_metadata(
 
 def _build_url_from_parts() -> Optional[str]:
     user = os.getenv('DATAENGINE_DB_USER')
-    pwd = os.getenv('DATAENGINE_DB_PASSWORD')
+    pwd = leer_secreto('DATAENGINE_DB_PASSWORD')
     host = os.getenv('DATAENGINE_DB_HOST')
     port = os.getenv('DATAENGINE_DB_PORT', '5432')
     db = os.getenv('DATAENGINE_DB_NAME')

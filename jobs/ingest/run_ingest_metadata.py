@@ -5,6 +5,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+from core.utils.secretos import leer_secreto
 
 from sqlalchemy import create_engine
 
@@ -19,7 +20,7 @@ def _build_url() -> str | None:
     if direct:
         return direct
     user = os.getenv("DATAENGINE_DB_USER")
-    pwd = os.getenv("DATAENGINE_DB_PASSWORD")
+    pwd = leer_secreto("DATAENGINE_DB_PASSWORD")
     host = os.getenv("DATAENGINE_DB_HOST")
     port = os.getenv("DATAENGINE_DB_PORT", "5432")
     db = os.getenv("DATAENGINE_DB_NAME")

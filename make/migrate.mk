@@ -14,6 +14,9 @@ migrate: ## Sincronizar imagen de jobs y aplicar alembic
 	dc prod exec -T jobs alembic upgrade head
 	printf '\n  %sEstado despues%s\n' "$$C_BOLD" "$$C_RESET"
 	_migrate_report
+	printf '\n  %sCatalogo%s\n' "$$C_BOLD" "$$C_RESET"
+	run_step 'Geometrias' dc prod exec -T jobs python run_backfill_geometry_type.py
+	run_step 'Hexbin pendiente' dc prod exec -T jobs python run_refresh_hexbin.py --pendientes
 	printf '\n'
 
 bootstrap: ## Crear rol, schema y grants, sembrar layers y migrar (idempotente)
