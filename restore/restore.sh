@@ -74,4 +74,8 @@ END
 \$\$;
 SQL
 
+if [ -f /scripts/stats_read_grants.sql ]; then
+    psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -v ON_ERROR_STOP=0 -f /scripts/stats_read_grants.sql
+fi
+
 echo "Restauracion completada: $FILE"
