@@ -6,6 +6,18 @@ El formato esta basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.
 y este proyecto se adhiere a [Versionado Semantico](https://semver.org/lang/es/). El versionado
 de `dataengine` es independiente del de MapaLab.
 
+## [No publicado]
+
+### Corregido
+
+- **Migración `0056_reaplica_lectura_tematica`**: `mariachi_layers` vuelve a tener `USAGE` y `SELECT`
+  sobre los schemas temáticos de `mapalab.workspaces` (`educacion`, `demografia`, `economia`, `salud`
+  y los demás), solo lectura. Un restore con `--no-acl` sobre una base con la `0031` ya aplicada los
+  dejaba fuera y el editor de estadísticas de mariachi respondía 502 «permission denied for schema».
+  Reaplica también los de `mapalab_stats` y es idempotente.
+- `restore/restore.sh` corre `scripts/stats_read_grants.sql` al terminar, para que un restore no
+  vuelva a dejar sin lectura a `mariachi_layers` ni a `mapalab_stats`.
+
 ## [1.49.0] - 2026-10-05
 
 ### Agregado
