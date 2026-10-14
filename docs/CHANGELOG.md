@@ -10,6 +10,12 @@ de `dataengine` es independiente del de MapaLab.
 
 ### Agregado
 
+- **Migración `0058_columna_de_fecha`**: columna `date_column` en `mapalab.layers` (`NULL` por defecto).
+  mariachi la edita como «Columna de fecha» y la función de periodicidad la toma antes que el comentario
+  `mapalab:fecha` y que `fecha`.
+- `scripts/refresh_periodicity.sql` queda igual que la función que instala mapalab: elige la columna de la
+  capa, la comentada con `mapalab:fecha` o `fecha`, y guarda `date_column` en `layer_periodicity`. Antes
+  era la versión que solo leía `fecha` y, corrida a mano, regresaba la función a esa versión.
 - **Migración `0057_capas_consultables`**: columna `queryable` en `mapalab.layers` (por defecto
   `TRUE`); las curvas de nivel nacen en `FALSE`. `refresh-layer-tree` la publica en
   `wmsConfig.queryable`.
