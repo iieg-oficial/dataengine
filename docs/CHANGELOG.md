@@ -8,6 +8,12 @@ de `dataengine` es independiente del de MapaLab.
 
 ## [No publicado]
 
+### Agregado
+
+- **Migración `0057_capas_consultables`**: columna `queryable` en `mapalab.layers` (por defecto
+  `TRUE`); las curvas de nivel nacen en `FALSE`. `refresh-layer-tree` la publica en
+  `wmsConfig.queryable`.
+
 ### Corregido
 
 - **Migración `0056_reaplica_lectura_tematica`**: `mariachi_layers` vuelve a tener `USAGE` y `SELECT`
