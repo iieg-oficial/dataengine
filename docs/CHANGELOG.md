@@ -10,6 +10,12 @@ de `dataengine` es independiente del de MapaLab.
 
 ### Agregado
 
+- **Migración `0059_rol_mapalab_mcp`**: rol `mapalab_mcp` para el servidor MCP público de mapalab. Lee
+  solo las tablas del catálogo que usa el MCP y escribe solo en `map_shares` y `layer_tree_cache`, sin
+  acceso a los schemas temáticos ni a las tablas de usuarios; `statement_timeout` de 20 s. Nace sin
+  `LOGIN`: la password se asigna en cada entorno.
+- `scripts/mcp_grants.sql` reaplica esos GRANT sin tocar `alembic_version`; `restore/restore.sh` lo corre
+  al terminar, junto con `stats_read_grants.sql`.
 - **Migración `0058_columna_de_fecha`**: columna `date_column` en `mapalab.layers` (`NULL` por defecto).
   mariachi la edita como «Columna de fecha» y la función de periodicidad la toma antes que el comentario
   `mapalab:fecha` y que `fecha`.
