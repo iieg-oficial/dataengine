@@ -28,6 +28,10 @@ de `dataengine` es independiente del de MapaLab.
 
 ### Corregido
 
+- **HIGH de Trivy en las imágenes del stack.** pgbouncer pasa a `v1.26.1-p0` (libpq 18.5 y OpenSSL
+  3.5.8; misma `pgbouncer.ini`, probado con TLS y la consola admin), nginx a `1.30.6-alpine`, y
+  `jobs` y el sidecar `/ontoy` ya no llevan `pip` en la imagen final (urllib3, msgpack y setuptools
+  vendorizados). Las tres quedan en 0 HIGH.
 - **Migración `0056_reaplica_lectura_tematica`**: `mariachi_layers` vuelve a tener `USAGE` y `SELECT`
   sobre los schemas temáticos de `mapalab.workspaces` (`educacion`, `demografia`, `economia`, `salud`
   y los demás), solo lectura. Un restore con `--no-acl` sobre una base con la `0031` ya aplicada los

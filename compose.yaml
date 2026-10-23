@@ -86,7 +86,7 @@ services:
     logging: *logging
 
   pgbouncer:
-    image: edoburu/pgbouncer:v1.25.2-p0
+    image: edoburu/pgbouncer:v1.26.1-p0
     container_name: dataengine-pgbouncer
     restart: unless-stopped
     ports:
@@ -146,7 +146,7 @@ services:
     logging: *logging
 
   docker-socket-proxy:
-    image: nginx:1.30.4-alpine
+    image: nginx:1.30.6-alpine
     container_name: dataengine-docker-socket-proxy
     restart: unless-stopped
     user: "101:101"
