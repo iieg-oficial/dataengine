@@ -116,16 +116,19 @@ def _sin_clasificar(conn) -> int:
 
 def _fetch_layers(conn, solo_pendientes: bool = False) -> list[dict[str, Any]]:
     cols = ['id', 'workspace_alias', 'geoserver_workspace', 'geoserver_layer',
-            'wfs_layer_name', 'cql_filter']
+            'wfs_layer_name', 'cql_filter', 'date_column']
     pendientes = """
            AND NOT EXISTS (SELECT 1 FROM mapalab.hexbin_counts c
                             WHERE c.layer_key = l.id)
     """ if solo_pendientes else ''
     rows = conn.execute(text(f"""
         SELECT l.id, l.workspace_alias, w.geoserver_workspace, l.geoserver_layer,
-               l.wfs_layer_name, l.cql_filter
+               l.wfs_layer_name, l.cql_filter,
+               coalesce(nullif(btrim(l.date_column), ''), p.date_column)
           FROM mapalab.layers l
           LEFT JOIN mapalab.workspaces w ON w.alias = l.workspace_alias
+          LEFT JOIN public.layer_periodicity p
+                 ON p.layer_key = w.geoserver_workspace || ':' || l.geoserver_layer
          WHERE l.deleted_at IS NULL
            AND l.node_type = 'leaf'
            AND l.geometry_type = 'point'
@@ -168,7 +171,7 @@ def _ows(geoserver: str, typename: str, params: dict[str, str]) -> Any:
 
 
 def _propiedades(
-    geoserver: str, typename: str
+    geoserver: str, typename: str, columna_fecha: Optional[str] = None
 ) -> tuple[str, Optional[str], Optional[str], Optional[str]]:
     datos = _ows(geoserver, typename, {
         'service': 'WFS', 'version': '2.0.0', 'request': 'DescribeFeatureType',
@@ -182,7 +185,9 @@ def _propiedades(
          if str(p.get('type', '')).startswith('gml:') or p.get('localType') in ('Point', 'MultiPoint')),
         'geom',
     )
-    fecha = next((n for n in nombres if _normalizar(n) in CAMPOS_FECHA), None)
+    fecha = columna_fecha if columna_fecha in nombres else next(
+        (n for n in nombres if _normalizar(n) in CAMPOS_FECHA), None,
+    )
     municipio = next((n for n in nombres if _normalizar(n) in CAMPOS_MUNICIPIO), None)
     clave = next((n for n in nombres if _normalizar(n) in CAMPOS_CLAVE_MUNICIPIO), None)
     return geometria, fecha, municipio, clave
@@ -226,7 +231,7 @@ def _clave_de(props: dict[str, Any], campo_clave: Optional[str], campo_muni: Opt
 
 def _procesar(geoserver: str, capa: dict[str, Any], typename: str,
               municipios: dict[str, str]) -> tuple[dict, dict]:
-    geometria, campo_fecha, campo_muni, campo_clave = _propiedades(geoserver, typename)
+    geometria, campo_fecha, campo_muni, campo_clave = _propiedades(geoserver, typename, capa.get('date_column'))
     campos = [geometria] + [c for c in (campo_fecha, campo_clave, campo_muni) if c]
     features = _features(geoserver, typename, campos, capa.get('cql_filter'))
     claves_validas = set(municipios.values())

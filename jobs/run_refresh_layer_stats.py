@@ -2,6 +2,7 @@ import json
 import os
 import re
 import sys
+from calendar import monthrange
 from datetime import datetime, timezone
 
 from sqlalchemy import create_engine, text
@@ -18,6 +19,8 @@ MAX_EXPRESSION_DEPTH = 6
 FILTER_OPS = {'eq', 'in', 'gte', 'lte', 'between', 'is_not_null'}
 CONTEXT_KEYS = {'municipio', 'municipio.claves', 'municipio.nombres', 'fecha.inicio', 'fecha.fin'}
 MUNICIPIO_FIELD_TOKEN = '@municipio'
+FECHA_FIELD_TOKEN = '@fecha'
+DEFAULT_DATE_COLUMN = 'fecha'
 MUNICIPIO_CONTEXT_BY_TYPE = {'clave': '{{municipio.claves}}', 'nombre': '{{municipio.nombres}}'}
 SQL_COMPARATORS = {'eq': '=', 'gte': '>=', 'lte': '<='}
 MAX_FILTERS = 6
@@ -152,11 +155,64 @@ _LAYER_BINDING_SQL = """
 """
 
 
+_LAYER_FECHA_SQL = """
+    SELECT coalesce(nullif(btrim(l.date_column), ''), p.date_column), l.default_date
+    FROM mapalab.layers l
+    LEFT JOIN public.layer_periodicity p ON p.layer_key = :layer_key
+    WHERE l.workspace_alias || ':' || l.geoserver_layer = :layer_key
+      AND l.deleted_at IS NULL
+    ORDER BY l.default_date IS NULL, l.id
+    LIMIT 1
+"""
+
+
 def load_layer_binding(conn, layer_key: str) -> dict | None:
     row = conn.execute(text(_LAYER_BINDING_SQL), {'layer_key': layer_key}).first()
-    if not row:
+    fecha = conn.execute(text(_LAYER_FECHA_SQL), {'layer_key': layer_key}).first()
+    if not row and not fecha:
         return None
-    return {'municipio_field': row[0], 'municipio_field_type': row[1]}
+    return {
+        'municipio_field': row[0] if row else None,
+        'municipio_field_type': row[1] if row else None,
+        'date_column': (fecha[0] if fecha else None) or DEFAULT_DATE_COLUMN,
+        'default_date': fecha[1] if fecha else None,
+    }
+
+
+def usa_fecha(stats_config) -> bool:
+    texto = json.dumps(stats_config or [], default=str)
+    return f'"{FECHA_FIELD_TOKEN}"' in texto or '{{fecha.' in texto
+
+
+def _mayor(valor) -> int | None:
+    valores = valor if isinstance(valor, list) else [valor]
+    numeros = [int(v) for v in valores if str(v).isdigit()]
+    return max(numeros) if numeros else None
+
+
+def rango_de_fecha_defecto(default_date) -> tuple[str, str] | None:
+    if not isinstance(default_date, dict):
+        return None
+    anio = _mayor(default_date.get('year'))
+    if anio is None:
+        return None
+    mes = _mayor(default_date.get('month'))
+    if mes is None or not 1 <= mes <= 12:
+        return f'{anio}-01-01', f'{anio}-12-31'
+    ultimo = monthrange(anio, mes)[1]
+    dia = _mayor(default_date.get('day'))
+    if dia is None or not 1 <= dia <= ultimo:
+        return f'{anio}-{mes:02d}-01', f'{anio}-{mes:02d}-{ultimo:02d}'
+    return f'{anio}-{mes:02d}-{dia:02d}', f'{anio}-{mes:02d}-{dia:02d}'
+
+
+def contexto_de_capa(binding: dict | None, stats_config) -> dict | None:
+    if not usa_fecha(stats_config):
+        return None
+    rango = rango_de_fecha_defecto((binding or {}).get('default_date'))
+    if rango is None:
+        return None
+    return {'fecha.inicio': rango[0], 'fecha.fin': rango[1]}
 
 
 def _bind_filter(item: dict, binding: dict | None) -> dict | None:
@@ -166,6 +222,8 @@ def _bind_filter(item: dict, binding: dict | None) -> dict | None:
         if not field:
             return None
         bound['field'] = field
+    if bound.get('field') == FECHA_FIELD_TOKEN:
+        bound['field'] = (binding or {}).get('date_column') or DEFAULT_DATE_COLUMN
     if _placeholder_key(bound.get('value')) == 'municipio':
         replacement = MUNICIPIO_CONTEXT_BY_TYPE.get((binding or {}).get('municipio_field_type'))
         if not replacement:
@@ -276,17 +334,17 @@ def load_allowed_schemas(conn) -> frozenset[str]:
     return frozenset(row[0] for row in conn.execute(text(_ALLOWED_SCHEMAS_SQL)))
 
 
-def _execute_primitive(conn, cfg: dict, schemas: frozenset[str]):
+def _execute_primitive(conn, cfg: dict, schemas: frozenset[str], context: dict | None = None):
     if cfg.get('schema') not in schemas:
         raise ValueError(f"schema '{cfg.get('schema')}' fuera de mapalab.workspaces")
-    built = _build_query(cfg)
+    built = _build_query(cfg, context)
     if built is None:
         raise ValueError(f"config primitiva invalida (operation={cfg.get('operation')})")
     sql, params = built
     return conn.execute(text(sql), params).scalar()
 
 
-def _evaluate_expression(conn, expr, schemas: frozenset[str], depth: int = 0):
+def _evaluate_expression(conn, expr, schemas: frozenset[str], depth: int = 0, context: dict | None = None):
     if depth > MAX_EXPRESSION_DEPTH:
         raise ValueError('expresion demasiado anidada')
     if not isinstance(expr, dict):
@@ -299,14 +357,14 @@ def _evaluate_expression(conn, expr, schemas: frozenset[str], depth: int = 0):
         return literal
 
     if expr.get('operation') in PRIMITIVE_OPERATIONS:
-        return _execute_primitive(conn, expr, schemas)
+        return _execute_primitive(conn, expr, schemas, context)
 
     op = expr.get('op')
     if op not in COMBINATOR_OPS:
         raise ValueError(f"combinator invalido: '{op}'")
 
-    left = _to_number(_evaluate_expression(conn, expr.get('left'), schemas, depth + 1))
-    right = _to_number(_evaluate_expression(conn, expr.get('right'), schemas, depth + 1))
+    left = _to_number(_evaluate_expression(conn, expr.get('left'), schemas, depth + 1, context))
+    right = _to_number(_evaluate_expression(conn, expr.get('right'), schemas, depth + 1, context))
     if left is None or right is None:
         return None
     if op == 'add':
@@ -322,13 +380,13 @@ def _evaluate_expression(conn, expr, schemas: frozenset[str], depth: int = 0):
     return ((left - right) / right) * 100 if right != 0 else None
 
 
-def _execute_stat(conn, cfg: dict, schemas: frozenset[str]):
+def _execute_stat(conn, cfg: dict, schemas: frozenset[str], context: dict | None = None):
     op = cfg.get('operation')
     if op == 'static':
         return cfg.get('value')
     if op == 'formula':
-        return _evaluate_expression(conn, cfg.get('expression'), schemas)
-    return _execute_primitive(conn, cfg, schemas)
+        return _evaluate_expression(conn, cfg.get('expression'), schemas, context=context)
+    return _execute_primitive(conn, cfg, schemas, context)
 
 
 def _format_value(value, fmt) -> str | None:
@@ -360,6 +418,7 @@ def _refresh_layer(
     errors = []
 
     binding = load_layer_binding(conn, layer_key)
+    contexto = contexto_de_capa(binding, stats_config)
 
     for cfg in bind_layer_fields(stats_config, binding):
         if not isinstance(cfg, dict):
@@ -374,7 +433,7 @@ def _refresh_layer(
         try:
             if savepoint is not None:
                 conn.execute(text(f'SET LOCAL ROLE {STATS_ROLE}'))
-            raw = _execute_stat(conn, cfg, schemas)
+            raw = _execute_stat(conn, cfg, schemas, contexto)
             if savepoint is not None:
                 conn.execute(text('RESET ROLE'))
                 savepoint.commit()

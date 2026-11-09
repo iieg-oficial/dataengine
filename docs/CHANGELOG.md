@@ -10,6 +10,11 @@ de `dataengine` es independiente del de MapaLab.
 
 ### Agregado
 
+- **`@fecha` en `run_refresh_layer_stats.py`**, igual que mapalab 2.10.0: se liga a la columna que resolvió la
+  periodicidad (`layers.date_column`, luego `layer_periodicity.date_column`, luego `fecha`) y el cron calcula con el
+  `default_date` de la capa. Antes rechazaba el filtro y registraba un error por slot; ahora `values` coincide con lo
+  que muestra el visor sin fecha.
+- `run_refresh_hexbin.py` toma esa misma columna antes de la lista fija `fecha`, `anio`, `ano`, `fecha_hecho`.
 - **Migración `0059_rol_mapalab_mcp`**: rol `mapalab_mcp` para el servidor MCP público de mapalab. Lee
   solo las tablas del catálogo que usa el MCP y escribe solo en `map_shares` y `layer_tree_cache`, sin
   acceso a los schemas temáticos ni a las tablas de usuarios; `statement_timeout` de 20 s. Nace sin
