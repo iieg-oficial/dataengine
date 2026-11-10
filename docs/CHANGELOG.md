@@ -10,6 +10,9 @@ de `dataengine` es independiente del de MapaLab.
 
 ### Agregado
 
+- **Migración `0060_periodicidad_para_mariachi`**: `mariachi_layers` puede leer `public.layer_periodicity`, de donde
+  el motor de estadísticas de mariachi toma la columna de `@fecha`. `scripts/stats_read_grants.sql` lo reaplica tras
+  un restore.
 - **`@fecha` en `run_refresh_layer_stats.py`**, igual que mapalab 2.10.0: se liga a la columna que resolvió la
   periodicidad (`layers.date_column`, luego `layer_periodicity.date_column`, luego `fecha`) y el cron calcula con el
   `default_date` de la capa. Antes rechazaba el filtro y registraba un error por slot; ahora `values` coincide con lo

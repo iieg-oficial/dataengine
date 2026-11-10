@@ -33,6 +33,10 @@ BEGIN
             CONTINUE;
         END IF;
 
+        IF target_role = 'mariachi_layers' AND to_regclass('public.layer_periodicity') IS NOT NULL THEN
+            GRANT SELECT ON public.layer_periodicity TO mariachi_layers;
+        END IF;
+
         FOR target_schema IN
             SELECT DISTINCT w.db_schema
             FROM mapalab.workspaces w
