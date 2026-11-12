@@ -56,6 +56,8 @@ BEGIN
                          AND cfg.column_name = a.attname
                    ) AS by_config,
                    coalesce(col_description(c.oid, a.attnum), '') ILIKE '%mapalab:fecha%' AS by_comment,
+                   a.attname = 'fecha_periodo_seleccion'
+                       AND t.typname IN ('date', 'timestamp', 'timestamptz') AS by_contract,
                    a.attname = 'fecha' AS by_name
             FROM pg_attribute a
             JOIN pg_class c ON c.oid = a.attrelid
@@ -68,8 +70,8 @@ BEGIN
         )
         SELECT DISTINCT ON (schema_name, table_name) schema_name, table_name, column_name, col_type
         FROM candidates
-        WHERE by_config OR by_comment OR by_name
-        ORDER BY schema_name, table_name, by_config DESC, by_comment DESC, column_name
+        WHERE by_config OR by_comment OR by_contract OR by_name
+        ORDER BY schema_name, table_name, by_config DESC, by_comment DESC, by_contract DESC, column_name
     LOOP
         BEGIN
             IF rec.col_type IN ('date', 'timestamp', 'timestamptz') THEN
