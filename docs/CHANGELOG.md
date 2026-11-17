@@ -6,7 +6,7 @@ El formato esta basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.
 y este proyecto se adhiere a [Versionado Semantico](https://semver.org/lang/es/). El versionado
 de `dataengine` es independiente del de MapaLab.
 
-## [No publicado]
+## [1.50.0] - 2026-11-17
 
 ### Agregado
 
