@@ -6,10 +6,13 @@ El formato esta basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.
 y este proyecto se adhiere a [Versionado Semantico](https://semver.org/lang/es/). El versionado
 de `dataengine` es independiente del de MapaLab.
 
-## [No publicado]
+## [1.50.0] - 2026-11-17
 
 ### Agregado
 
+- **`fecha_periodo_seleccion` es la columna de fecha por contrato.** `scripts/refresh_periodicity.sql` la toma
+  antes que `fecha` cuando es de tipo fecha, sin configurarla capa por capa; la columna de la capa y el comentario
+  `mapalab:fecha` siguen ganando. Igual que mapalab 2.11.1.
 - **Migración `0060_periodicidad_para_mariachi`**: `mariachi_layers` puede leer `public.layer_periodicity`, de donde
   el motor de estadísticas de mariachi toma la columna de `@fecha`. `scripts/stats_read_grants.sql` lo reaplica tras
   un restore.
