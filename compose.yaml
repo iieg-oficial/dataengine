@@ -86,7 +86,7 @@ services:
     logging: *logging
 
   pgbouncer:
-    image: edoburu/pgbouncer:v1.26.1-p0
+    build: ./pgbouncer
     container_name: dataengine-pgbouncer
     restart: unless-stopped
     ports:
