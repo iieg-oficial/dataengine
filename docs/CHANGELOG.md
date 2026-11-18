@@ -6,6 +6,13 @@ El formato esta basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.
 y este proyecto se adhiere a [Versionado Semantico](https://semver.org/lang/es/). El versionado
 de `dataengine` es independiente del de MapaLab.
 
+## [1.50.1] - 2026-11-17
+
+### Corregido
+
+- **pgbouncer con los parches de Alpine.** `pgbouncer/Dockerfile` envuelve `edoburu/pgbouncer:v1.26.1-p0` con `apk upgrade` (libpq 18.7, musl y zlib): de 79 HIGH a 0. El compose lo construye en vez de bajar la imagen.
+- `pg-backup` hace `apk upgrade` (krb5, libexpat, libxslt) y `jobs` `apt-get upgrade` (`zlib1g`). En `pg-backup` quedan el CRITICAL y los HIGH del Go de `gosu`, que vienen de la imagen de postgis.
+
 ## [1.50.0] - 2026-11-17
 
 ### Agregado
