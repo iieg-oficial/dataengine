@@ -35,12 +35,4 @@ fi
 
 echo "Backup created: $FILEPATH"
 
-UPLOAD_STATUS=0
-/scripts/upload-ao.sh "$FILEPATH" "$FILENAME" || UPLOAD_STATUS=$?
-
 /scripts/cleanup.sh
-
-if [ "$UPLOAD_STATUS" -ne 0 ]; then
-    echo "No se subio el respaldo al acervo (codigo $UPLOAD_STATUS): solo existe en este servidor" >&2
-    exit "$UPLOAD_STATUS"
-fi
