@@ -6,6 +6,12 @@ El formato esta basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.
 y este proyecto se adhiere a [Versionado Semantico](https://semver.org/lang/es/). El versionado
 de `dataengine` es independiente del de MapaLab.
 
+## [1.51.0] - 2026-11-19
+
+### Eliminado
+
+- **Subida de respaldos al Acervo.** `pg-backup` deja el dump solo en `BACKUP_DATA`; la copia fuera del nodo se hace a mano mientras llegan los respaldos globales. S4 nunca tuvo salida a S1 `:8333` y cada intento tardaba 70 minutos en fallar. Se van `upload-ao.sh`, `rclone`, `age` y las variables `AO_BUCKET`, `AO_ACCESS_KEY`, `AO_SECRET_KEY` y `BACKUP_AGE_RECIPIENT`; `AO_ENDPOINT` se queda para `jobs`.
+
 ## [1.50.1] - 2026-11-17
 
 ### Corregido
