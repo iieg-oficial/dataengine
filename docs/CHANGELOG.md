@@ -6,6 +6,12 @@ El formato esta basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.
 y este proyecto se adhiere a [Versionado Semantico](https://semver.org/lang/es/). El versionado
 de `dataengine` es independiente del de MapaLab.
 
+## [No publicado]
+
+### Cambiado
+
+- Imágenes base a Python 3.15 y Node 26. En jobs, `psycopg2-binary` 2.9.13 y `h3` 4.5.1, las primeras con ruedas para 3.15.
+
 ## [1.51.0] - 2026-11-19
 
 ### Eliminado

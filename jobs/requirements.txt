@@ -1,12 +1,12 @@
 # Database
 SQLAlchemy==1.4.54
-psycopg2-binary==2.9.11
+psycopg2-binary==2.9.13
 
 # Migrations
 alembic==1.13.3
 
 # Indice hexagonal H3 (hexbin del visor)
-h3==4.5.0
+h3==4.5.1
 
 # Configuration
 python-dotenv==1.2.1
