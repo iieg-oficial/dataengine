@@ -8,9 +8,13 @@ de `dataengine` es independiente del de MapaLab.
 
 ## [No publicado]
 
+## [1.51.1] - 2026-11-23
+
 ### Cambiado
 
 - Imágenes base a Python 3.15 y Node 26. En jobs, `psycopg2-binary` 2.9.13 y `h3` 4.5.1, las primeras con ruedas para 3.15.
+- Proxy del socket de Docker en `dhi.io/nginx:1.31.9-alpine3.24`, la imagen hardened de mainline, en lugar de `nginx:1.30.6-alpine`.
+- PostGIS 3.7 (`postgis/postgis:18-3.7-alpine`) en la primaria y en el respaldo. Tras el deploy, `ALTER EXTENSION postgis UPDATE`.
 
 ## [1.51.0] - 2026-11-19
 
