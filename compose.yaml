@@ -21,7 +21,7 @@ x-host-gateway: &host-gateway
 
 services:
   postgres-primary:
-    image: postgis/postgis:18-3.6-alpine
+    image: postgis/postgis:18-3.7-alpine
     container_name: dataengine-primary
     restart: unless-stopped
     ports:
