@@ -141,7 +141,7 @@ services:
     logging: *logging
 
   docker-socket-proxy:
-    image: nginx:1.30.6-alpine
+    image: dhi.io/nginx:1.31.9-alpine3.24
     container_name: dataengine-docker-socket-proxy
     restart: unless-stopped
     user: "101:101"
